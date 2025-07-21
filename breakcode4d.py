@@ -166,47 +166,48 @@ def get_last_result_insight(draws):
     lines.append("- Ranking tinggi (Top 3) menunjukkan konsistensi kuat.")
     return '\n'.join(lines)
 
-# ===================== BACKTEST =====================
-def run_backtest(draws, base_path='data/base.txt', num_days=10):
+# ===================== BACKTEST (DINAMIK) =====================
+def run_backtest(draws, num_days=10):
     if len(draws) < num_days:
         st.warning("❗ Tidak cukup draw untuk backtest.")
         return
 
     results = []
-    st.markdown("### 🔁 Backtest 10 Hari Terakhir")
+    st.markdown(f"### 🔁 Backtest {num_days} Hari Terakhir")
 
     for i in range(num_days):
-    draw = draws[-(i+1)]
-    draw_date, first_prize = draw['date'], draw['number']
+        test_draw = draws[-(i+1)]
+        draw_date, first_prize = test_draw['date'], test_draw['number']
 
-    base_draws = draws[:-(i+1)]
-    base = score_digits(base_draws)
-    if not base:
-        st.error(f"❗ Tidak cukup data untuk jana base sebelum {draw_date}")
-        return
+        # Ambil base sebelum tarikh draw
+        base_draws = draws[:-(i+1)]
+        if len(base_draws) < 10:
+            st.warning(f"❗ Tidak cukup data sebelum {draw_date} untuk jana base.")
+            continue
 
-    predictions = generate_predictions(base, n=4)
-    insight = ["✅" if p == first_prize else "❌" for p in predictions]
+        base = score_digits(base_draws)
+        predictions = generate_predictions(base, n=4)
+        insight = ["✅" if p == first_prize else "❌" for p in predictions]
 
-    results.append({
-        "Tarikh": draw_date,
-        "Result 1st": first_prize,
-        "P1": predictions[0],
-        "P2": predictions[1],
-        "P3": predictions[2],
-        "P4": predictions[3],
-        "Insight": f"P1:{insight[0]} P2:{insight[1]} P3:{insight[2]} P4:{insight[3]}"
-    })
+        results.append({
+            "Tarikh": draw_date,
+            "Result 1st": first_prize,
+            "P1": predictions[0],
+            "P2": predictions[1],
+            "P3": predictions[2],
+            "P4": predictions[3],
+            "Insight": f"P1:{insight[0]} P2:{insight[1]} P3:{insight[2]} P4:{insight[3]}"
+        })
 
-    st.markdown(f"""
-    ### 🎯 Tarikh: {draw_date}
-    **Result 1st**: `{first_prize}`  
-    **Base (sebelum {draw_date}):**
-    """)
-    for j, b in enumerate(base):
-        st.text(f"P{j+1}: {' '.join(str(d) for d in b)}")
-    st.markdown(f"**Insight:** `{results[-1]['Insight']}`")
-    st.markdown("---")
+        st.markdown(f"""
+        ### 🎯 Tarikh: {draw_date}
+        **Result 1st**: `{first_prize}`  
+        **Base (sebelum {draw_date}):**
+        """)
+        for j, b in enumerate(base):
+            st.text(f"P{j+1}: {' '.join(str(d) for d in b)}")
+        st.markdown(f"**Insight:** `{results[-1]['Insight']}`")
+        st.markdown("---")
 
     df = pd.DataFrame(results[::-1])
     success_count = sum(1 for r in results if "✅" in r["Insight"])
