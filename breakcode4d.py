@@ -260,15 +260,16 @@ else:
 
     # Auto-saranan LIKE / DISLIKE
     try:
-        last_30 = draws[-30:]
-        digit_counter = Counter("".join(d[1] for d in last_30 if len(d[1]) == 4))
-        most_common = digit_counter.most_common()
-        like_suggest = [d for d, _ in most_common[:3]]
-        dislike_suggest = [d for d, _ in most_common[-3:]]
-        st.markdown(f"📈 **Cadangan LIKE digit:** {' '.join(like_suggest)}")
-        st.markdown(f"📉 **Cadangan DISLIKE digit:** {' '.join(dislike_suggest)}")
-    except Exception as e:
-        st.warning(f"❌ Ralat semasa jana cadangan: {e}")
+    last_30 = [d for d in draws[-30:] if isinstance(d, tuple) and len(d) == 2 and len(d[1]) == 4 and d[1].isdigit()]
+    all_digits = "".join(d[1] for d in last_30)
+    digit_counter = Counter(all_digits)
+    most_common = digit_counter.most_common()
+    like_suggest = [d for d, _ in most_common[:3]]
+    dislike_suggest = [d for d, _ in most_common[-3:]]
+    st.markdown(f"📈 **Cadangan LIKE digit:** {' '.join(like_suggest)}")
+    st.markdown(f"📉 **Cadangan DISLIKE digit:** {' '.join(dislike_suggest)}")
+except Exception as e:
+    st.warning(f"❌ Ralat semasa jana cadangan: {e}")
 
     # Pilihan Mod Input
     mode = st.radio("Mod Input:", ["Auto (dari Base)", "Manual Input"])
