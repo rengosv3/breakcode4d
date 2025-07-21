@@ -299,7 +299,7 @@ else:
                 for b in manual_base[1]:
                     for c in manual_base[2]:
                         for d in manual_base[3]:
-                            combos.append(f"{a}{b}{c}{d}#####${lot}")
+                            combos.append(f"{a}{b}{c}{d}#####{lot}")
 
             st.info(f"💡 Sebelum tapis: {len(combos)} nombor")
 
