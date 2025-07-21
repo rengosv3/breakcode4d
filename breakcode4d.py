@@ -185,7 +185,7 @@ with col2:
 
 draws = load_draws()
 if not draws:
-    st.warning("⚠️ Sila klik 'Update Draw Terkini' untuk mula.")
+    st.warning("⚠️ Sila klik 'Update Draw Terkini' untuk mula. Proses ini hanya mengambil masa 1-5 minit sahaja.")
 else:
     st.info(f"📅 Tarikh terakhir: **{draws[-1]['date']}** | 📊 Jumlah draw: **{len(draws)}**")
     tabs = st.tabs(["📌 Insight", "🧠 Ramalan", "🔁 Backtest", "📋 Draw List", "🎡 Wheelpick"])
