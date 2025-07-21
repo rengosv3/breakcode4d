@@ -167,54 +167,55 @@ def get_last_result_insight(draws):
     return '\n'.join(lines)
 
 # ===================== BACKTEST (DINAMIK) =====================
-def run_backtest(draws, num_days=10):
-    if len(draws) < num_days:
-        st.warning("❗ Tidak cukup draw untuk backtest.")
-        return
-
-    def match_insight_by_column(first_prize, base):
-        insight = []
-        for i in range(4):
-            digit = first_prize[i]
-            insight.append("✅" if digit in base[i] else "❌")
-        return insight
-
+def run_backtest(draws, num_days=10, mode="normal"):
     results = []
-    st.markdown(f"### 🔁 Backtest {num_days} Hari Terakhir")
+    full_hits = 0
+    total_checks = 0
 
-    for i in range(num_days):
-        test_draw = draws[-(i+1)]
-        draw_date, first_prize = test_draw['date'], test_draw['number']
+    for i in range(num_days, len(draws)):
+        test_draw = draws[i]
+        base_draws = draws[i - num_days:i]
 
-        base_draws = draws[:-(i+1)]
-        if len(base_draws) < 10:
-            st.warning(f"❗ Tidak cukup data sebelum {draw_date} untuk jana base.")
-            continue
+        # Pilih base ikut strategi
+        if mode == "super":
+            base = generate_super_base(base_draws)
+        elif mode == "ai":
+            base = ai_tuner(base_draws)
+        elif mode == "prediction":
+            predictions = generate_predictions(base_draws)
+            base = predictions[0] if predictions else [[0]*5]*4
+        else:  # default = "normal"
+            base = score_digits([d['number'] for d in base_draws])
 
-        base = score_digits(base_draws)
-        insight = match_insight_by_column(first_prize, base)
+        first_prize = test_draw['number']
+        insight = []
+        full_match = True
+
+        for pos, digit in enumerate(first_prize):
+            digit = int(digit)
+            if digit in base[pos]:
+                insight.append(f"P{pos+1}:✅")
+            else:
+                insight.append(f"P{pos+1}:❌")
+                full_match = False
+
+        if full_match:
+            full_hits += 1
+        total_checks += 1
 
         results.append({
-            "Tarikh": draw_date,
-            "Result 1st": first_prize,
-            "Insight": f"P1:{insight[0]} P2:{insight[1]} P3:{insight[2]} P4:{insight[3]}"
+            'Tarikh': test_draw['date'],
+            'Result 1st': test_draw['number'],
+            'Insight': " ".join(insight)
         })
 
-        st.markdown(f"""
-        ### 🎯 Tarikh: {draw_date}
-        **Result 1st**: `{first_prize}`  
-        **Base (sebelum {draw_date}):**
-        """)
-        for j, b in enumerate(base):
-            st.text(f"P{j+1}: {' '.join(str(d) for d in b)}")
-        st.markdown(f"**Insight:** `P1:{insight[0]} P2:{insight[1]} P3:{insight[2]} P4:{insight[3]}`")
-        st.markdown("---")
+    df = pd.DataFrame(results)
+    avg_hit = df['Insight'].apply(lambda x: x.count("✅")).mean()
 
-    df = pd.DataFrame(results[::-1])
-    success_count = sum(1 for r in results if "✅" in r["Insight"])
-    st.success(f"🎉 Jumlah digit match: {success_count} daripada {num_days}")
-    st.markdown("### 📊 Ringkasan Backtest:")
-    st.dataframe(df, use_container_width=True)
+    st.markdown(f"### 🔁 Backtest Strategy: `{mode}`")
+    st.write(df)
+    st.markdown(f"✅ Full ✅ Matches: `{full_hits}/{total_checks}`")
+    st.markdown(f"📊 Avg ✅ per draw: `{avg_hit:.2f}`")
 
 # ===================== VISUALISASI =====================
 def show_digit_heatmap(draws):
