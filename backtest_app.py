@@ -1,9 +1,9 @@
 # backtest_app.py
 
 import streamlit as st
+import pandas as pd
 from modules.base_analysis import load_draws, load_base_from_file
 from modules.ai_prediction import generate_predictions
-import pandas as pd
 
 def run_backtest(draws, base_path='data/base.txt', num_days=10):
     if len(draws) < num_days:
@@ -23,12 +23,7 @@ def run_backtest(draws, base_path='data/base.txt', num_days=10):
             return
 
         predictions = generate_predictions(base, n=4)
-        insight = []
-        for p in predictions:
-            if p == first_prize:
-                insight.append("✅")
-            else:
-                insight.append("❌")
+        insight = ["✅" if p == first_prize else "❌" for p in predictions]
 
         results.append({
             "Tarikh": draw_date,
@@ -54,7 +49,7 @@ def run_backtest(draws, base_path='data/base.txt', num_days=10):
     st.markdown("### 📊 Ringkasan Backtest:")
     st.dataframe(df, use_container_width=True)
 
-# ===================== Jika fail ini dibuka secara terus =====================
+# 👇 Ini perlu supaya run bila standalone
 if __name__ == "__main__" or st._is_running_with_streamlit:
     draws = load_draws()
     run_backtest(draws)
