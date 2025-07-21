@@ -6,6 +6,16 @@ from datetime import datetime, timedelta
 from collections import Counter, defaultdict
 import random
 import pandas as pd
+from datetime import datetime, timedelta
+
+def get_24h_countdown_from_8pm():
+    now = datetime.now()
+    today_8pm = now.replace(hour=20, minute=0, second=0, microsecond=0)
+    if now >= today_8pm:
+        next_8pm = today_8pm + timedelta(days=1)
+    else:
+        next_8pm = today_8pm
+    return next_8pm - now
 
 # ===================== Load & Save =====================
 def load_draws(file_path='data/draws.txt'):
@@ -43,7 +53,7 @@ def get_1st_prize(date_str):
     except requests.RequestException:
         return None
 
-def update_draws(file_path='data/draws.txt', max_days_back=61):
+def update_draws(file_path='data/draws.txt', max_days_back=121):
     draws = load_draws(file_path)
     last_date = (datetime.today() - timedelta(days=max_days_back)) if not draws else datetime.strptime(draws[-1]['date'], "%Y-%m-%d")
     yesterday = datetime.today() - timedelta(days=1)
@@ -166,6 +176,8 @@ def run_backtest(draws, strategy='hybrid', recent_n=10):
 
 # ===================== UI =====================
 st.set_page_config(page_title="Breakcode4D Predictor", layout="wide")
+remaining = get_24h_countdown_from_8pm()
+st.markdown(f"⏳ **Next draw:** `{str(remaining).split('.')[0]}`")
 st.title("🔮 Breakcode4D Predictor (GD Lotto)")
 
 col1, col2 = st.columns([1,1])
