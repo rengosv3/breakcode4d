@@ -230,7 +230,7 @@ with colB:
         """
         <a href="https://batman11.net/RegisterByReferral.aspx?MemberCode=BB1845" target="_blank">
             <button style="background-color:#4CAF50;color:white;padding:0.5em 1em;border:none;border-radius:5px;cursor:pointer;font-weight:bold;">
-                🔗 Register Sini
+                🔗 Register Sini Batman 11 and Get Free Bonus
             </button>
         </a>
         """,
