@@ -203,12 +203,13 @@ if not draws:
 else:
     st.info(f"📅 Tarikh terakhir: **{draws[-1]['date']}** | 📊 Jumlah draw: **{len(draws)}**")
 
-    tab1, tab2, tab3, tab4, tab5 = st.tabs([
+    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
         "📌 Insight Terakhir",
         "🧠 Ramalan",
         "🔁 Cross & Super",
         "🧪 AI Tuner",
-        "📊 Visualisasi"
+        "📊 Visualisasi",
+        "📂 Draws List"
     ])
 
     with tab1:
@@ -245,3 +246,14 @@ else:
         show_digit_distribution(draws)
         st.markdown("---")
         show_digit_heatmap(draws)
+
+    with tab6:
+        st.markdown("### 📂 Senarai Penuh Draws")
+        df_draws = pd.DataFrame(draws)[::-1]
+        st.dataframe(df_draws, use_container_width=True)
+        st.download_button(
+            label="💾 Muat Turun Semua Draws",
+            data=df_draws.to_csv(index=False),
+            file_name='draws_list.csv',
+            mime='text/csv'
+        )
