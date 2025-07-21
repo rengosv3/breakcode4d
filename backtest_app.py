@@ -1,18 +1,17 @@
 # backtest_app.py
+
 import streamlit as st
 from modules.base_analysis import load_draws, load_base_from_file
 from modules.ai_prediction import generate_predictions
 import pandas as pd
 
-st.set_page_config(page_title="Breakcode4D Backtest", layout="wide")
-
-def perform_backtest(draws, base_path='data/base.txt', num_days=10):
+def run_backtest(draws, base_path='data/base.txt', num_days=10):
     if len(draws) < num_days:
         st.warning("❗ Tidak cukup draw untuk backtest.")
         return
 
     results = []
-    st.markdown("# 🔁 Backtest 10 Hari Terakhir")
+    st.markdown("### 🔁 Backtest 10 Hari Terakhir")
 
     for i in range(num_days):
         draw = draws[-(i+1)]
@@ -55,6 +54,7 @@ def perform_backtest(draws, base_path='data/base.txt', num_days=10):
     st.markdown("### 📊 Ringkasan Backtest:")
     st.dataframe(df, use_container_width=True)
 
-# Panggil draw
-draws = load_draws()
-perform_backtest(draws)
+# ===================== Jika fail ini dibuka secara terus =====================
+if __name__ == "__main__" or st._is_running_with_streamlit:
+    draws = load_draws()
+    run_backtest(draws)
