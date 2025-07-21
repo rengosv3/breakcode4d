@@ -6,10 +6,8 @@ from datetime import datetime, timedelta
 from collections import Counter, defaultdict
 import random
 import pandas as pd
-import matplotlib.pyplot as plt
-import seaborn as sns
 
-# --------- Load & Save Draws/Base ---------
+# ===================== Load & Save =====================
 def load_draws(file_path='data/draws.txt'):
     if not os.path.exists(file_path):
         return []
@@ -27,21 +25,20 @@ def save_base_to_file(base_digits, file_path='data/base.txt'):
         for pick in base_digits:
             f.write(' '.join(str(d) for d in pick) + '\n')
 
-def load_base_from_file(file_path):
+def load_base_from_file(file_path='data/base.txt'):
     if not os.path.exists(file_path):
         return []
     with open(file_path, 'r') as f:
         return [line.strip().split() for line in f if line.strip()]
 
-# --------- Update Draws from Web ---------
+# ===================== Update Draws =====================
 def get_1st_prize(date_str):
     url = f"https://gdlotto.net/results/ajax/_result.aspx?past=1&d={date_str}"
     try:
         resp = requests.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=10)
         if resp.status_code != 200:
             return None
-        html = resp.text
-        m = re.search(r'id="1stPz">(\d{4})<', html)
+        m = re.search(r'id="1stPz">(\d{4})<', resp.text)
         return m.group(1) if m else None
     except requests.RequestException:
         return None
@@ -70,7 +67,7 @@ def update_draws(file_path='data/draws.txt', max_days_back=61):
         save_base_to_file(latest_base, 'data/base_last.txt')
     return f"✔ {len(added)} draw baru ditambah." if added else "✔ Tiada draw baru ditambah."
 
-# --------- Base Generation Strategies ---------
+# ===================== Strategy Base =====================
 def generate_base(draws, method='frequency', recent_n=10):
     if method == 'frequency':
         return generate_by_frequency(draws, recent_n)
@@ -103,7 +100,6 @@ def generate_by_gap(draws, recent_n=10):
 
     for idx, number in enumerate(recent_draws[::-1]):
         for pos, digit in enumerate(number):
-            digit = digit
             if last_seen[pos][digit] != -1:
                 gap = idx - last_seen[pos][digit]
                 gap_scores[pos][digit] += gap
@@ -132,7 +128,7 @@ def generate_hybrid(draws, recent_n=10):
         picks.append(final)
     return picks
 
-# --------- Backtest ---------
+# ===================== Backtest =====================
 def run_backtest(draws, strategy='hybrid', recent_n=10):
     if len(draws) < recent_n + 10:
         st.warning("❗ Tidak cukup draw untuk backtest.")
@@ -151,30 +147,16 @@ def run_backtest(draws, strategy='hybrid', recent_n=10):
     for i in range(recent_n):
         test_draw = draws[-(i+1)]
         draw_date, first_prize = test_draw['date'], test_draw['number']
-
         base_draws = draws[:-(i+1)]
         if len(base_draws) < 10:
-            st.warning(f"❗ Data kurang sebelum {draw_date} untuk base.")
             continue
-
         base = generate_base(base_draws, method=strategy, recent_n=recent_n)
         insight = match_insight(first_prize, base)
-
         results.append({
             "Tarikh": draw_date,
             "Result 1st": first_prize,
             "Insight": f"P1:{insight[0]} P2:{insight[1]} P3:{insight[2]} P4:{insight[3]}"
         })
-
-        st.markdown(f"""
-        ### 🎯 Tarikh: {draw_date}
-        **Result 1st**: `{first_prize}`  
-        **Base (sebelum {draw_date}):**
-        """)
-        for j, b in enumerate(base):
-            st.text(f"P{j+1}: {' '.join(b)}")
-        st.markdown(f"**Insight:** `P1:{insight[0]} P2:{insight[1]} P3:{insight[2]} P4:{insight[3]}`")
-        st.markdown("---")
 
     df = pd.DataFrame(results[::-1])
     success_count = sum("✅" in r["Insight"] for r in results)
@@ -182,7 +164,7 @@ def run_backtest(draws, strategy='hybrid', recent_n=10):
     st.markdown("### 📊 Ringkasan Backtest:")
     st.dataframe(df, use_container_width=True)
 
-# --------- UI ---------
+# ===================== UI =====================
 st.set_page_config(page_title="Breakcode4D Predictor", layout="wide")
 st.title("🔮 Breakcode4D Predictor (GD Lotto)")
 
@@ -193,7 +175,7 @@ with col1:
         st.success(msg)
         st.markdown("### 📋 Base Hari Ini")
         if os.path.exists('data/base.txt'):
-            st.code('\n'.join([' '.join(p) for p in load_base_from_file('data/base.txt')]), language='text')
+            st.code('\n'.join([' '.join(p) for p in load_base_from_file()]), language='text')
         else:
             st.warning("❗ Tiada base fail ditemui.")
 
@@ -211,13 +193,18 @@ if not draws:
     st.warning("⚠️ Sila klik 'Update Draw Terkini' untuk mula.")
 else:
     st.info(f"📅 Tarikh terakhir: **{draws[-1]['date']}** | 📊 Jumlah draw: **{len(draws)}**")
-    tabs = st.tabs(["📌 Insight Terakhir", "🧠 Ramalan", "🔁 Backtest"])
+    tabs = st.tabs(["📋 Draw List", "📌 Insight", "🧠 Ramalan", "🔁 Backtest"])
 
     with tabs[0]:
-        st.markdown("### 📌 Insight Terakhir")
-        # (Boleh tambah fungsi insight di sini jika mahu)
+        st.markdown("### 📋 Senarai Semua Draw")
+        df = pd.DataFrame(draws)
+        st.dataframe(df, use_container_width=True)
 
     with tabs[1]:
+        st.markdown("### 📌 Insight Terakhir")
+        # Boleh tambah paparan insight terakhir di sini
+
+    with tabs[2]:
         st.markdown("### 🧠 Ramalan Base")
         base_strategy = st.selectbox("Pilih strategi base untuk ramalan:", ['hybrid', 'frequency', 'gap'])
         recent_n = st.slider("Jumlah draw terkini digunakan untuk base:", 5, 100, 30, 5)
@@ -231,7 +218,7 @@ else:
                 preds.append(pred)
         st.code('\n'.join(preds), language='text')
 
-    with tabs[2]:
+    with tabs[3]:
         st.markdown("### 🔁 Backtest Base")
         backtest_strategy = st.selectbox("Pilih strategi base untuk backtest:", ['hybrid', 'frequency', 'gap'])
         backtest_recent_n = st.slider("Jumlah draw terkini untuk backtest:", 5, 50, 10, 1)
