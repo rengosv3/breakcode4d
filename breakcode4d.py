@@ -22,11 +22,10 @@ def load_draws(file_path='data/draws.txt'):
                 draws.append((parts[0], parts[1]))  # ('2024-01-01', '1234')
     return draws
 
-def save_base_to_file(base_digits, file_path='data/base.txt'):
-    os.makedirs(os.path.dirname(file_path), exist_ok=True)
+def save_base_to_file(base, file_path):
     with open(file_path, 'w') as f:
-        for pick in base_digits:
-            f.write(' '.join(pick) + '\n')
+        for pick in base:
+            f.write(' '.join(str(num) for num in pick) + '\n')
 
 def load_base_from_file(file_path):
     if not os.path.exists(file_path):
