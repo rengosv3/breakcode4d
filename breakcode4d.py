@@ -1,3 +1,5 @@
+# breakcode4d.py
+
 import streamlit as st
 import os
 import re
@@ -31,7 +33,7 @@ def get_1st_prize(date_str):
     except:
         return None
 
-def update_draws(file_path='data/draws.txt', max_days_back=120):
+def update_draws(file_path='data/draws.txt', max_days_back=30):
     draws = load_draws(file_path)
     if not draws:
         last_date = datetime.today() - timedelta(days=max_days_back)
