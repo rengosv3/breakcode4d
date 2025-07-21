@@ -213,7 +213,7 @@ def show_digit_distribution(draws):
 
 # ===================== UI Streamlit =====================
 st.set_page_config(page_title="Breakcode4D Visual", layout="centered")
-st.title("🔮 Breakcode4D Predictor")
+st.title("🔮 Breakcode4D Predictor(GD Lotto)")
 
 col_btn1, col_btn2 = st.columns([1, 1])
 
