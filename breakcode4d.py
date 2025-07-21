@@ -7,12 +7,16 @@ from collections import Counter, defaultdict
 import random
 import pandas as pd
 from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo  # built-in from Python 3.9+
 
-def get_next_draw_countdown():
-    now = datetime.now()
-    last_8pm = now.replace(hour=20, minute=0, second=0, microsecond=0)
-    if now < last_8pm:
-        last_8pm -= timedelta(days=1)
+def get_draw_countdown_from_last_8pm():
+    now = datetime.now(ZoneInfo("Asia/Kuala_Lumpur"))
+    today_8pm = now.replace(hour=20, minute=0, second=0, microsecond=0)
+
+    if now < today_8pm:
+        last_8pm = today_8pm - timedelta(days=1)
+    else:
+        last_8pm = today_8pm
 
     next_8pm = last_8pm + timedelta(days=1)
     remaining = next_8pm - now
@@ -177,8 +181,8 @@ def run_backtest(draws, strategy='hybrid', recent_n=10):
 
 # ===================== UI =====================
 st.set_page_config(page_title="Breakcode4D Predictor", layout="wide")
-remaining = get_next_draw_countdown()
-st.markdown(f"⏳ Next draw: `{str(remaining).split('.')[0]}`")
+countdown = get_draw_countdown_from_last_8pm()
+st.markdown(f"⏳ Next draw: `{str(countdown).split('.')[0]}`")
 st.title("🔮 Breakcode4D Predictor (GD Lotto)")
 
 col1, col2 = st.columns([1,1])
