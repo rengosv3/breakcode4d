@@ -33,10 +33,10 @@ def load_base_from_file(file_path):
         return []
     base = []
     with open(file_path, 'r') as f:
-        for line in f:
-            digits = line.strip().split()
-            if digits:
-                base.append(digits)
+            for line in f:
+                digits = line.strip().split()
+                if digits:
+                    base.append(digits)
     return base
 
 def display_base_as_text(file_path):
@@ -63,7 +63,7 @@ def get_1st_prize(date_str):
     except:
         return None
 
-def update_draws(file_path='data/draws.txt', max_days_back=30):
+def update_draws(file_path='data/draws.txt', max_days_back=60):
     draws = load_draws(file_path)
     if not draws:
         last_date = datetime.today() - timedelta(days=max_days_back)
@@ -88,7 +88,7 @@ def update_draws(file_path='data/draws.txt', max_days_back=30):
         save_base_to_file(latest_base, 'data/base_last.txt')
     return f"✔ {len(added)} draw baru ditambah." if added else "✔ Tiada draw baru ditambah."
 
-# ===================== Skor Base & Super Base =====================
+# ===================== Skor Base =====================
 def score_digits(draws, recent_n=30):
     weights = [Counter() for _ in range(4)]
     for i, draw in enumerate(draws[-recent_n:]):
@@ -99,6 +99,7 @@ def score_digits(draws, recent_n=30):
         base.append([digit for digit, _ in pick.most_common(5)])
     return base
 
+# ===================== Super Base =====================
 def generate_super_base(draws):
     base_30 = score_digits(draws, 30)
     base_60 = score_digits(draws, 60)
@@ -110,7 +111,7 @@ def generate_super_base(draws):
         super_base.append(combined[:5])
     return super_base
 
-# ===================== Ramalan & Cross Pick =====================
+# ===================== Ramalan =====================
 def generate_predictions(base_digits, n=10):
     all_combinations = set()
     while len(all_combinations) < n:
@@ -118,6 +119,7 @@ def generate_predictions(base_digits, n=10):
         all_combinations.add(combo)
     return sorted(list(all_combinations))
 
+# ===================== Cross Pick =====================
 def cross_pick_analysis(draws):
     pick_data = [defaultdict(int) for _ in range(4)]
     for draw in draws:
