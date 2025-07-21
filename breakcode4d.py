@@ -195,19 +195,20 @@ def show_digit_distribution(draws):
         axs[i].set_title(f"Digit di Pick {i+1}")
     st.pyplot(fig)
 
-# ================================================================
+# ...
 # 🎯 UI STREAMLIT
 # ================================================================
 st.set_page_config(page_title="Breakcode4D Predictor", layout="centered")
 st.title("🔮 Breakcode4D Predictor")
 
-with st.sidebar:
-    if st.button("📥 Update Draw Terkini"):
-        msg = update_draws()
-        st.success(msg)
-        st.markdown("### 📋 Base Hari Ini")
-        st.code(display_base_as_text('data/base.txt'), language='text')
+# ✅ Paparkan butang di bahagian tengah (bukan sidebar)
+if st.button("📥 Update Draw Terkini"):
+    msg = update_draws()
+    st.success(msg)
+    st.markdown("### 📋 Base Hari Ini")
+    st.code(display_base_as_text('data/base.txt'), language='text')
 
+# Muat data selepas update
 draws = load_draws()
 
 if not draws:
