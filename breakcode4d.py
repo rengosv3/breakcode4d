@@ -70,7 +70,7 @@ def get_last_result_insight(draws):
 
     last_number = last_valid['number']
     last_date = last_valid['date']
-    insight_lines = [f"📅 Nombor terakhir naik: **{last_number}** pada {last_date}\n"]
+    insight_lines = [f"📌 Insight Nombor Terakhir\n", f"📅 Nombor terakhir naik: **{last_number}** pada {last_date}\n"]
 
     # Frekuensi & Rank
     all_numbers = [d['number'] for d in draws if len(d['number']) == 4]
@@ -87,32 +87,30 @@ def get_last_result_insight(draws):
             cross_data[i][digit] += 1
     cross_top = [[d for d, _ in sorted(c.items(), key=lambda x: -x[1])[:5]] for c in cross_data]
 
-    # Semak dan beri skor AI untuk setiap digit
+    # Tampilkan Base Digits
+    insight_lines.append("📊 Base Digit (5 Tertinggi per Pick):")
+    for i, pick in enumerate(base_digits):
+        insight_lines.append(f"Pick {i+1}: {' '.join(pick)}")
+    insight_lines.append("")
+
+    # AI Analisis setiap digit dalam nombor terakhir
     for i, digit in enumerate(last_number):
         freq = digit_counter[i][digit]
         rank = sorted(digit_counter[i].values(), reverse=True).index(freq) + 1
         in_base = "✅" if digit in base_digits[i] else "❌"
         in_cross = "✅" if digit in cross_top[i] else "❌"
 
-        # Kira skor kebarangkalian
         score = 0
-        if rank <= 3:
-            score += 2
-        elif rank <= 5:
-            score += 1
-        if in_base == "✅":
-            score += 2
-        if in_cross == "✅":
-            score += 1
+        if rank <= 3: score += 2
+        elif rank <= 5: score += 1
+        if in_base == "✅": score += 2
+        if in_cross == "✅": score += 1
 
         label = "🔥 Sangat berpotensi" if score >= 4 else "👍 Berpotensi" if score >= 3 else "❓ Kurang pasti"
         insight_lines.append(
             f"Pick {i+1}: Digit '{digit}' - Ranking #{rank}, Base: {in_base}, Cross: {in_cross} → **{label}**"
         )
 
-    insight_lines.append("\n💡 AI Insight:")
-    insight_lines.append("- Digit yang berada dalam Base & Cross berkemungkinan besar akan naik semula.")
-    insight_lines.append("- Ranking tinggi (Top 3) menunjukkan konsistensi kuat.")
     return '\n'.join(insight_lines)
 
 # ==== Fungsi Pilih Digit Terbaik ====
