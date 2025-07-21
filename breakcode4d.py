@@ -53,7 +53,7 @@ def get_1st_prize(date_str):
     except requests.RequestException:
         return None
 
-def update_draws(file_path='data/draws.txt', max_days_back=61):
+def update_draws(file_path='data/draws.txt', max_days_back=60):
     draws = load_draws(file_path)
     last_date = (datetime.today() - timedelta(days=max_days_back)) if not draws else datetime.strptime(draws[-1]['date'], "%Y-%m-%d")
     yesterday = datetime.today() - timedelta(days=1)
@@ -211,45 +211,75 @@ if not draws:
 else:
     st.info(f"📅 Tarikh terakhir: **{draws[-1]['date']}** | 📊 Jumlah draw: **{len(draws)}**")
 
-    tabs = st.tabs(["📌 Insight Terakhir","🧠 Ramalan","🔁 Cross & Super","🧪 AI Tuner","📊 Visualisasi","📂 Draws List"])
+    tabs = st.tabs([
+        "📌 Insight Terakhir",
+        "🧠 Ramalan",
+        "🔁 Cross & Super",
+        "🧪 AI Tuner",
+        "📊 Visualisasi",
+        "📂 Draws List"
+    ])
+
     with tabs[0]:
+        st.markdown("### 📌 Insight Terakhir")
         st.markdown(get_last_result_insight(draws))
+
     with tabs[1]:
+        st.markdown("### 🧠 Ramalan Berdasarkan Base")
         base = []
         if os.path.exists('data/base_super.txt'):
             base = load_base_from_file('data/base_super.txt')
+            st.info("Menggunakan Super Base")
         elif os.path.exists('data/base.txt'):
             base = load_base_from_file('data/base.txt')
+            st.info("Menggunakan Base Biasa")
         else:
-            st.warning("Tiada fail base ditemui. Sila update draw dahulu.")
+            st.warning("❗ Tiada fail base ditemui. Sila update draw dahulu.")
+
         if base:
-            for i,p in enumerate(base):
-                st.write(f"Pick {i+1}: {' '.join(p)}")
+            st.markdown("#### 📋 Base Digunakan:")
+            for i, p in enumerate(base):
+                st.text(f"Pick {i+1}: {' '.join(p)}")
+
             preds = generate_predictions(base)
-            c1, c2 = st.columns(2)
-            for i in range(min(5,len(preds))):
-                c1.text(preds[i])
-            for i in range(5,len(preds)):
-                c2.text(preds[i])
+            st.markdown("#### 🔮 Nombor Diramal:")
+            col1, col2 = st.columns(2)
+            half = len(preds) // 2
+            for i in range(half):
+                col1.code(preds[i], language='text')
+            for i in range(half, len(preds)):
+                col2.code(preds[i], language='text')
+
     with tabs[2]:
-        if st.button("🔁 Lihat Analisis Cross"):
-            st.text(cross_pick_analysis(draws))
-        if st.button("🚀 Jana & Simpan Super Base"):
-            sb = generate_super_base(draws)
-            save_base_to_file(sb, 'data/base_super.txt')
-            st.success("Super Base disimpan ke 'data/base_super.txt'")
+        st.markdown("### 🔁 Cross Pick & 🚀 Super Base")
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("📊 Lihat Analisis Cross"):
+                st.text(cross_pick_analysis(draws))
+        with col2:
+            if st.button("🚀 Jana & Simpan Super Base"):
+                sb = generate_super_base(draws)
+                save_base_to_file(sb, 'data/base_super.txt')
+                st.success("Super Base disimpan ke 'data/base_super.txt'")
+
         if os.path.exists('data/base_super.txt'):
-            st.markdown("### 📋 Super Base (Salin & Tampal)")
+            st.markdown("#### 📋 Super Base:")
             st.code(display_base_as_text('data/base_super.txt'), language='text')
+
     with tabs[3]:
-        if st.button("🧪 Jana AI Tuned Base"):
+        st.markdown("### 🧪 AI Tuner")
+        if st.button("🔧 Jana AI Tuned Base"):
             tuned = ai_tuner(draws)
-            for i,p in enumerate(tuned):
-                st.write(f"Tuned Pick {i+1}: {' '.join(p)}")
+            for i, p in enumerate(tuned):
+                st.text(f"Tuned Pick {i+1}: {' '.join(p)}")
+
     with tabs[4]:
+        st.markdown("### 📊 Visualisasi Data Digit")
         show_digit_distribution(draws)
         st.markdown("---")
+        st.markdown("#### 🔥 Heatmap (100 Draw Terakhir)")
         show_digit_heatmap(draws)
+
     with tabs[5]:
         st.markdown("### 📂 Senarai Penuh Draws")
         df = pd.DataFrame(draws)[::-1]
