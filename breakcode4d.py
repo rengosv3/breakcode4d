@@ -214,7 +214,7 @@ else:
         st.markdown("### 📌 Insight Terakhir")
         st.markdown(get_last_result_insight(draws))
         if st.button("🚀 Jalankan Backtest"):
-           st.switch_page("🔁 Backtest Breakcode4D")
+           st.switch_page("backtest_app.py")
 
     with tabs[1]:
         st.markdown("### 🧠 Ramalan Berdasarkan Base")
