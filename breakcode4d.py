@@ -43,10 +43,20 @@ def get_1st_prize(date_str):
     url = f"https://gdlotto.net/results/ajax/_result.aspx?past=1&d={date_str}"
     try:
         resp = requests.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=10)
-        if resp.status_code != 200: return None
-        m = re.search(r'id="1stPz">(\d{4})<', resp.text)
-        return m.group(1) if m else None
-    except requests.RequestException:
+        if resp.status_code != 200:
+            print(f"❌ Status code bukan 200 untuk {date_str}: {resp.status_code}")
+            return None
+
+        # Lebih fleksibel untuk struktur HTML
+        m = re.search(r'id="1stPz"[^>]*>(\d{4})<', resp.text)
+        if not m:
+            print(f"❌ Tiada padanan untuk tarikh {date_str}")
+            print("Contoh respons:", resp.text[:300])
+            return None
+        return m.group(1)
+
+    except requests.RequestException as e:
+        print(f"❌ Ralat semasa capai laman web untuk {date_str}: {e}")
         return None
 
 def update_draws(file_path='data/draws.txt', max_days_back=121):
