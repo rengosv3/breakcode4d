@@ -1,9 +1,15 @@
-# backtest_app.py
+# pages/backtest_app.py
 
 import streamlit as st
 import pandas as pd
 from modules.base_analysis import load_draws, load_base_from_file
 from modules.ai_prediction import generate_predictions
+
+# ✅ WAJIB ada ini untuk support st.switch_page()
+st.set_page_config(
+    page_title="🔁 Backtest Breakcode4D",
+    layout="wide"
+)
 
 def run_backtest(draws, base_path='data/base.txt', num_days=10):
     if len(draws) < num_days:
