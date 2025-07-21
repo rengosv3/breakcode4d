@@ -9,7 +9,6 @@ import random
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
-from collections import Counter
 
 # ===================== MUAT & SIMPAN BASE =====================
 def load_draws(file_path='data/draws.txt'):
@@ -23,10 +22,11 @@ def load_draws(file_path='data/draws.txt'):
                 draws.append({'date': parts[0], 'number': parts[1]})
     return draws
 
-def save_base_to_file(base, file_path):
+def save_base_to_file(base_digits, file_path='data/base.txt'):
+    os.makedirs(os.path.dirname(file_path), exist_ok=True)
     with open(file_path, 'w') as f:
-        for pick in base:
-            f.write(' '.join(map(str, pick)) + '\n')
+        for pick in base_digits:
+            f.write(' '.join(pick) + '\n')
 
 def load_base_from_file(file_path):
     if not os.path.exists(file_path):
@@ -77,52 +77,35 @@ def update_draws(file_path='data/draws.txt', max_days_back=61):
         save_base_to_file(latest_base, 'data/base_last.txt')
     return f"✔ {len(added)} draw baru ditambah." if added else "✔ Tiada draw baru ditambah."
 
-# ===================== ANALISIS & BASE (BARU) =====================
-def score_digits(draws, recent_n=20, min_gap=3):
-    """
-    Cari 5 digit terbaik untuk setiap posisi (P1–P4) berdasarkan:
-    - Frekuensi tertinggi dalam recent_n draw
-    - Elakkan digit yang terlalu 'fresh' (baru muncul < min_gap draw lalu)
-    - Pastikan setiap posisi ada 5 digit
-    """
-    recent = draws[-recent_n:]
-    counts = [Counter() for _ in range(4)]
-    last_seen = [{} for _ in range(4)]
+# ===================== ANALISIS & BASE =====================
+def score_digits(draws, recent_n=30):
+    recent = draws[-recent_n:] if len(draws) >= recent_n else draws
+    weights = [Counter() for _ in range(4)]
+    for idx, draw in enumerate(reversed(recent)):
+        for pos, digit in enumerate(draw['number']):
+            weights[pos][digit] += idx + 1
+    return [[d for d, _ in w.most_common(5)] for w in weights]
 
-    for idx, draw in enumerate(recent):
-        number = draw['number']
-        for pos in range(4):
-            digit = number[pos]
-            counts[pos][digit] += 1
-            last_seen[pos][digit] = idx  # idx = jarak dari terkini
+def generate_super_base(draws):
+    b30 = score_digits(draws, 30)
+    b60 = score_digits(draws, 60)
+    b120 = score_digits(draws, 120)
+    superb = []
+    for i in range(4):
+        common = set(b30[i]) & set(b60[i]) & set(b120[i])
+        combined = list(common) + [d for d in b30[i] if d not in common]
+        superb.append(combined[:5])
+    return superb
 
-    base = []
-    for pos in range(4):
-        # Utamakan digit yg cukup gap
-        selected = []
-        for digit, freq in counts[pos].most_common():
-            gap = recent_n - last_seen[pos].get(digit, recent_n)
-            if gap >= min_gap:
-                selected.append(int(digit))
-            if len(selected) == 5:
-                break
-
-        # Jika tak cukup 5, tambah digit berikutnya walaupun gap kecil
-        if len(selected) < 5:
-            for digit, _ in counts[pos].most_common():
-                if int(digit) not in selected:
-                    selected.append(int(digit))
-                if len(selected) == 5:
-                    break
-
-        base.append(selected)
-    return base
-# ===================== RAMALAN =====================
+# ===================== RAMALAN & AI =====================
 def generate_predictions(base_digits, n=10):
     combos = set()
     while len(combos) < n:
         combos.add(''.join(random.choice(base_digits[i]) for i in range(4)))
     return sorted(combos)
+
+def ai_tuner(draws):
+    return [[d for d in pick if int(d)%2==0 or d in '579'] for pick in score_digits(draws,30)]
 
 def cross_pick_analysis(draws):
     cnt = [defaultdict(int) for _ in range(4)]
@@ -274,7 +257,7 @@ if not draws:
     st.warning("⚠️ Sila klik 'Update Draw Terkini' untuk mula.")
 else:
     st.info(f"📅 Tarikh terakhir: **{draws[-1]['date']}** | 📊 Jumlah draw: **{len(draws)}**")
-    tabs = st.tabs(["📌 Insight Terakhir", "🧠 Ramalan", "🔁 Cross Pick", "📊 Visualisasi", "🔁 Backtest", "📂 Draws List"])
+    tabs = st.tabs(["📌 Insight Terakhir", "🧠 Ramalan", "🔁 Cross & Super", "🧪 AI Tuner", "📊 Visualisasi", "🔁 Backtest", "📂 Draws List"])
 
     with tabs[0]:
         st.markdown("### 📌 Insight Terakhir")
@@ -283,7 +266,10 @@ else:
     with tabs[1]:
         st.markdown("### 🧠 Ramalan Berdasarkan Base")
         base = []
-        if os.path.exists('data/base.txt'):
+        if os.path.exists('data/base_super.txt'):
+            base = load_base_from_file('data/base_super.txt')
+            st.info("Menggunakan Super Base")
+        elif os.path.exists('data/base.txt'):
             base = load_base_from_file('data/base.txt')
             st.info("Menggunakan Base Biasa")
         else:
@@ -295,21 +281,40 @@ else:
             st.code('\n'.join([' '.join(preds[i:i+5]) for i in range(0, len(preds), 5)]), language='text')
 
     with tabs[2]:
-        st.markdown("### 🔁 Cross Pick Analysis")
-        if st.button("📊 Lihat Cross Pick"):
-            st.text(cross_pick_analysis(draws))
+        st.markdown("### 🔁 Cross Pick & Super Base")
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("📊 Lihat Cross Pick"):
+                st.text(cross_pick_analysis(draws))
+        with col2:
+            if st.button("🚀 Jana Super Base"):
+                sb = generate_super_base(draws)
+                save_base_to_file(sb, 'data/base_super.txt')
+                st.success("Super Base disimpan.")
+        if os.path.exists('data/base_super.txt'):
+            st.code(display_base_as_text('data/base_super.txt'), language='text')
 
     with tabs[3]:
+        st.markdown("### 🧪 AI Tuner")
+        if st.button("🔧 Jana AI Tuned Base"):
+            tuned = ai_tuner(draws)
+            for i, p in enumerate(tuned):
+                st.text(f"Tuned Pick {i+1}: {' '.join(p)}")
+            preds = generate_predictions(tuned)
+            st.markdown("#### 🔮 Ramalan Berdasarkan AI Tuned:")
+            st.code('\n'.join([' '.join(preds[i:i+5]) for i in range(0, len(preds), 5)]), language='text')
+
+    with tabs[4]:
         st.markdown("### 📊 Visualisasi Data Digit")
         show_digit_distribution(draws)
         st.markdown("---")
         st.markdown("#### 🔥 Heatmap (100 Draw Terakhir)")
         show_digit_heatmap(draws)
 
-    with tabs[4]:
+    with tabs[5]:
         run_backtest(draws)
 
-    with tabs[5]:
+    with tabs[6]:
         st.markdown("### 📂 Senarai Penuh Draws")
         df = pd.DataFrame(draws)[::-1]
         st.dataframe(df, use_container_width=True)
