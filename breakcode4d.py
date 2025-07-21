@@ -18,8 +18,8 @@ def load_draws(file_path='data/draws.txt'):
     with open(file_path, 'r') as f:
         for line in f:
             parts = line.strip().split()
-            if len(parts) == 2 and re.match(r"^\d{4}$", parts[1]):
-                draws.append({'date': parts[0], 'number': parts[1]})
+            if len(parts) == 2 and parts[1].isdigit():
+                draws.append((parts[0], parts[1]))  # ('2024-01-01', '1234')
     return draws
 
 def save_base_to_file(base_digits, file_path='data/base.txt'):
