@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 from collections import Counter, defaultdict
 import random
 
-# === Fungsi Utiliti Fail ===
+# ==== Fungsi Muat Draw.txt ====
 def load_draws(file_path='data/draws.txt'):
     if not os.path.exists(file_path):
         return []
@@ -19,7 +19,8 @@ def load_draws(file_path='data/draws.txt'):
                 draws.append({'date': parts[0], 'number': parts[1]})
     return draws
 
-def save_base_to_file(base_digits, file_path):
+# ==== Fungsi Simpan & Papar Base ====
+def save_base_to_file(base_digits, file_path='data/base.txt'):
     os.makedirs(os.path.dirname(file_path), exist_ok=True)
     with open(file_path, 'w') as f:
         for pick in base_digits:
@@ -47,7 +48,7 @@ def display_base_as_text(file_path):
                 lines.append(f"Pick {i+1}: {digits}")
     return '\n'.join(lines)
 
-# === Fungsi Update Draw ===
+# ==== Fungsi Update Draw ====
 def get_1st_prize(date_str):
     url = f"https://gdlotto.net/results/ajax/_result.aspx?past=1&d={date_str}"
     try:
@@ -76,11 +77,18 @@ def update_draws(file_path='data/draws.txt', max_days_back=30):
             prize = get_1st_prize(date_str)
             if prize:
                 f.write(f"{date_str} {prize}\n")
-                added.append(prize)
+                added.append({'date': date_str, 'number': prize})
             current += timedelta(days=1)
+
+    # Salin base hari ini ke base_last
+    if added:
+        draws = load_draws(file_path)
+        latest_base = score_digits(draws)
+        save_base_to_file(latest_base, 'data/base.txt')
+        save_base_to_file(latest_base, 'data/base_last.txt')
     return f"✔ {len(added)} draw baru ditambah." if added else "✔ Tiada draw baru ditambah."
 
-# === Fungsi Skor Base ===
+# ==== Sistem Skor Base ====
 def score_digits(draws, recent_n=30):
     weights = [Counter() for _ in range(4)]
     for i, draw in enumerate(draws[-recent_n:]):
@@ -91,18 +99,45 @@ def score_digits(draws, recent_n=30):
         base.append([digit for digit, _ in pick.most_common(5)])
     return base
 
-# === Fungsi Insight Nombor Terakhir ===
-def get_last_result_insight(draws, base_digits):
+# ==== Super Tuner Base (30, 60, 120) ====
+def generate_super_base(draws):
+    base_30 = score_digits(draws, 30)
+    base_60 = score_digits(draws, 60)
+    base_120 = score_digits(draws, 120)
+    super_base = []
+    for i in range(4):
+        common = set(base_30[i]) & set(base_60[i]) & set(base_120[i])
+        combined = list(common) + [d for d in base_30[i] if d not in common]
+        super_base.append(combined[:5])
+    return super_base
+
+# ==== Fungsi Ramalan (guna Super/Base) ====
+def generate_predictions(base_digits, n=10):
+    all_combinations = set()
+    while len(all_combinations) < n:
+        combo = ''.join(random.choice(base_digits[i]) for i in range(4))
+        all_combinations.add(combo)
+    return sorted(list(all_combinations))
+
+# ==== Fungsi Cross Pick Analysis ====
+def cross_pick_analysis(draws):
+    pick_data = [defaultdict(int) for _ in range(4)]
+    for draw in draws:
+        for i, digit in enumerate(draw['number']):
+            pick_data[i][digit] += 1
+    lines = []
+    for i, pd in enumerate(pick_data):
+        common = sorted(pd.items(), key=lambda x: -x[1])[:5]
+        lines.append(f"Pick {i+1}: {', '.join(f'{d} ({c}x)' for d, c in common)}")
+    return '\n'.join(lines)
+
+# ==== Fungsi Insight AI ====
+def get_last_result_insight(draws):
     if not draws:
         return "Tiada data draw tersedia."
 
     today_str = datetime.today().strftime("%Y-%m-%d")
-    last_valid = None
-    for d in reversed(draws):
-        if d['date'] < today_str:
-            last_valid = d
-            break
-
+    last_valid = next((d for d in reversed(draws) if d['date'] < today_str), None)
     if not last_valid:
         return "Tiada data draw semalam tersedia."
 
@@ -110,19 +145,29 @@ def get_last_result_insight(draws, base_digits):
     last_date = last_valid['date']
     insight_lines = [f"📅 Nombor terakhir naik: **{last_number}** pada {last_date}\n"]
 
+    # Frekuensi & Rank
     all_numbers = [d['number'] for d in draws if len(d['number']) == 4]
     digit_counter = [Counter() for _ in range(4)]
     for number in all_numbers:
         for i, digit in enumerate(number):
             digit_counter[i][digit] += 1
 
+    # Guna base_last.txt jika ada
+    base_path = 'data/base_last.txt'
+    if not os.path.exists(base_path):
+        base_digits = score_digits(draws[:-1])
+        save_base_to_file(base_digits, base_path)
+    base_digits = load_base_from_file(base_path)
+
+    # Cross Pick
     cross_data = [defaultdict(int) for _ in range(4)]
     for number in all_numbers:
         for i, digit in enumerate(number):
             cross_data[i][digit] += 1
     cross_top = [[d for d, _ in sorted(c.items(), key=lambda x: -x[1])[:5]] for c in cross_data]
 
-    insight_lines.append("Base (Semalam):")
+    # Papar base
+    insight_lines.append("\nBase Digunakan:")
     for i, pick in enumerate(base_digits):
         insight_lines.append(f"Pick {i+1}: {' '.join(pick)}")
     insight_lines.append("")
@@ -133,83 +178,77 @@ def get_last_result_insight(draws, base_digits):
         in_base = "✅" if digit in base_digits[i] else "❌"
         in_cross = "✅" if digit in cross_top[i] else "❌"
         score = 0
-        if rank <= 3: score += 2
-        elif rank <= 5: score += 1
-        if in_base == "✅": score += 2
-        if in_cross == "✅": score += 1
+        if rank <= 3:
+            score += 2
+        elif rank <= 5:
+            score += 1
+        if in_base == "✅":
+            score += 2
+        if in_cross == "✅":
+            score += 1
         label = "🔥 Sangat berpotensi" if score >= 4 else "👍 Berpotensi" if score >= 3 else "❓ Kurang pasti"
-        insight_lines.append(f"Pick {i+1}: Digit '{digit}' - Ranking #{rank}, Base: {in_base}, Cross: {in_cross} → **{label}**")
+        insight_lines.append(
+            f"Pick {i+1}: Digit '{digit}' - Ranking #{rank}, Base: {in_base}, Cross: {in_cross} → **{label}**"
+        )
 
     insight_lines.append("\n💡 AI Insight:")
-    insight_lines.append("- Digit dalam Base & Cross sangat konsisten untuk muncul.")
-    insight_lines.append("- Ranking tinggi memberi petunjuk kekuatan digit.")
-
+    insight_lines.append("- Digit dalam Base & Cross berkemungkinan besar naik semula.")
+    insight_lines.append("- Ranking tinggi (Top 3) menunjukkan konsistensi kuat.")
     return '\n'.join(insight_lines)
 
-# === Fungsi Ramalan AI ===
-def generate_predictions(base_digits, n=10):
-    all_combinations = set()
-    while len(all_combinations) < n:
-        combo = ''.join(random.choice(base_digits[i]) for i in range(4))
-        all_combinations.add(combo)
-    return sorted(list(all_combinations))
+# ==== Fungsi Paparan Base & Tuner ====
+def ai_tuner(draws):
+    base_score = score_digits(draws, recent_n=30)
+    filtered = [[d for d in pick if int(d) % 2 == 0 or d in '579'] for pick in base_score]
+    return filtered
 
-# === Fungsi Perbandingan Base ===
-def compare_bases(base_a, base_b, base_c):
-    result = []
-    for i in range(4):
-        pick_a = set(base_a[i])
-        pick_b = set(base_b[i])
-        pick_c = set(base_c[i])
-        common = pick_a & pick_b & pick_c
-        line = f"Pick {i+1}: "
-        for d in sorted(pick_a | pick_b | pick_c):
-            if d in common:
-                line += f"**{d}** "
-            else:
-                line += f"{d} "
-        result.append(line.strip())
-    return '\n'.join(result)
-
-# === UI Streamlit ===
+# ==== Paparan UI Streamlit ====
 st.set_page_config(page_title="Breakcode4D", layout="centered")
-st.title("🔮 Breakcode4D — Profesional AI 4D Analyzer")
+st.title("🔮 Breakcode4D Predictor")
 
 if st.button("📥 Update Draw Terkini"):
     msg = update_draws()
     st.success(msg)
+    st.markdown("### 📋 Base Hari Ini (Salin & Tampal)")
+    st.code(display_base_as_text('data/base.txt'), language='text')
 
-    draws_now = load_draws()
-    base_today = score_digits(draws_now)
-    save_base_to_file(base_today, "data/base.txt")
-
-    st.markdown("### 📊 Base Hari Ini (Disimpan sebagai base.txt)")
-    st.code(display_base_as_text("data/base.txt"))
-
+# === Load draw & hasil ===
 draws = load_draws()
+
 if draws:
-    st.subheader("🧠 AI Insight Nombor Terakhir")
+    st.info(f"📅 Tarikh terakhir: **{draws[-1]['date']}** | 📊 Jumlah draw: **{len(draws)}**")
 
-    base_last_path = 'data/base_last.txt'
-    if not os.path.exists(base_last_path):
-        base_auto = score_digits(draws[:-1])
-        save_base_to_file(base_auto, base_last_path)
-        base_last = base_auto
-    else:
-        base_last = load_base_from_file(base_last_path)
+    st.subheader("📌 Insight Nombor Terakhir")
+    st.text(get_last_result_insight(draws))
 
-    st.text(get_last_result_insight(draws, base_last))
+    st.subheader("🧠 Ramalan Berdasarkan Super/Base")
+    base_digits = load_base_from_file('data/base_super.txt') if os.path.exists('data/base_super.txt') else load_base_from_file('data/base.txt')
+    preds = generate_predictions(base_digits)
+    for i, pick in enumerate(base_digits):
+        st.write(f"Pick {i+1}: {' '.join(pick)}")
 
-    st.subheader("📊 Perbandingan Base")
-    base_txt = load_base_from_file("data/base.txt")
-    base_super = load_base_from_file("data/base_super.txt")
-    st.code(compare_bases(base_txt, base_last, base_super))
-
-    st.subheader("🎯 Ramalan AI Berdasarkan Base Semalam")
-    predictions = generate_predictions(base_last, n=10)
+    st.text("\n📊 10 Ramalan Terpilih:")
     col1, col2 = st.columns(2)
-    for i in range(5):
-        col1.text(predictions[i])
-        col2.text(predictions[i+5])
+    with col1:
+        for p in preds[:5]:
+            st.text(p)
+    with col2:
+        for p in preds[5:]:
+            st.text(p)
+
+    if st.button("🔁 Cross Pick Analysis"):
+        st.text(cross_pick_analysis(draws))
+
+    if st.button("🚀 Jana Super Base (30,60,120)"):
+        super_base = generate_super_base(draws)
+        save_base_to_file(super_base, 'data/base_super.txt')
+        st.success("Super Base disimpan ke 'base_super.txt'")
+        st.markdown("### 📋 Super Base (Salin & Tampal)")
+        st.code(display_base_as_text('data/base_super.txt'), language='text')
+
+    if st.button("🧪 Tuner AI (Auto Filter)"):
+        tuned = ai_tuner(draws)
+        for i, pick in enumerate(tuned):
+            st.write(f"Tuned Pick {i+1}: {' '.join(pick)}")
 else:
-    st.warning("⚠️ Tiada data draw. Klik butang di atas dahulu.")
+    st.warning("⚠️ Sila klik '📥 Update Draw Terkini' untuk mula.")
