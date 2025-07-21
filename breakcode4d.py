@@ -179,7 +179,7 @@ def get_last_result_insight(draws):
             score += 2
         if in_cross == "✅":
             score += 1
-        label = "🔥 Sangat berpotensi" if score >= 4 else "👍 Berpotensi" if score >= 3 else "❓ Kurang pasti"
+        label = "🔥 Sangat berpotensi" if score >= 4 else "👍 Berpotensi" if score >= 3 else "👎 Kurang pasti"
         insight_lines.append(
             f"Pick {i+1}: Digit '{digit}' - Ranking #{rank}, Base: {in_base}, Cross: {in_cross} → **{label}**\n"
         )
