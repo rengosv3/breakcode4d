@@ -172,6 +172,13 @@ def run_backtest(draws, num_days=10):
         st.warning("❗ Tidak cukup draw untuk backtest.")
         return
 
+    def match_insight_by_column(first_prize, base):
+        insight = []
+        for i in range(4):
+            digit = first_prize[i]
+            insight.append("✅" if digit in base[i] else "❌")
+        return insight
+
     results = []
     st.markdown(f"### 🔁 Backtest {num_days} Hari Terakhir")
 
@@ -179,23 +186,17 @@ def run_backtest(draws, num_days=10):
         test_draw = draws[-(i+1)]
         draw_date, first_prize = test_draw['date'], test_draw['number']
 
-        # Ambil base sebelum tarikh draw
         base_draws = draws[:-(i+1)]
         if len(base_draws) < 10:
             st.warning(f"❗ Tidak cukup data sebelum {draw_date} untuk jana base.")
             continue
 
         base = score_digits(base_draws)
-        predictions = generate_predictions(base, n=4)
-        insight = ["✅" if p == first_prize else "❌" for p in predictions]
+        insight = match_insight_by_column(first_prize, base)
 
         results.append({
             "Tarikh": draw_date,
             "Result 1st": first_prize,
-            "P1": predictions[0],
-            "P2": predictions[1],
-            "P3": predictions[2],
-            "P4": predictions[3],
             "Insight": f"P1:{insight[0]} P2:{insight[1]} P3:{insight[2]} P4:{insight[3]}"
         })
 
@@ -206,12 +207,12 @@ def run_backtest(draws, num_days=10):
         """)
         for j, b in enumerate(base):
             st.text(f"P{j+1}: {' '.join(str(d) for d in b)}")
-        st.markdown(f"**Insight:** `{results[-1]['Insight']}`")
+        st.markdown(f"**Insight:** `P1:{insight[0]} P2:{insight[1]} P3:{insight[2]} P4:{insight[3]}`")
         st.markdown("---")
 
     df = pd.DataFrame(results[::-1])
     success_count = sum(1 for r in results if "✅" in r["Insight"])
-    st.success(f"🎉 Jumlah menang tepat: {success_count} daripada {num_days}")
+    st.success(f"🎉 Jumlah digit match: {success_count} daripada {num_days}")
     st.markdown("### 📊 Ringkasan Backtest:")
     st.dataframe(df, use_container_width=True)
 
