@@ -1,4 +1,3 @@
-
 import streamlit as st
 import os
 import re
@@ -6,8 +5,11 @@ import requests
 from datetime import datetime, timedelta
 from collections import Counter, defaultdict
 import random
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
 
-# ==== Fungsi Muat Draw.txt ====
+# ===================== Fungsi Muat Draw.txt =====================
 def load_draws(file_path='data/draws.txt'):
     if not os.path.exists(file_path):
         return []
@@ -19,7 +21,7 @@ def load_draws(file_path='data/draws.txt'):
                 draws.append({'date': parts[0], 'number': parts[1]})
     return draws
 
-# ==== Fungsi Simpan & Papar Base ====
+# ===================== Simpan & Papar Base =====================
 def save_base_to_file(base_digits, file_path='data/base.txt'):
     os.makedirs(os.path.dirname(file_path), exist_ok=True)
     with open(file_path, 'w') as f:
@@ -48,7 +50,7 @@ def display_base_as_text(file_path):
                 lines.append(f"Pick {i+1}: {digits}")
     return '\n'.join(lines)
 
-# ==== Fungsi Update Draw ====
+# ===================== Update Draw =====================
 def get_1st_prize(date_str):
     url = f"https://gdlotto.net/results/ajax/_result.aspx?past=1&d={date_str}"
     try:
@@ -61,7 +63,7 @@ def get_1st_prize(date_str):
     except:
         return None
 
-def update_draws(file_path='data/draws.txt', max_days_back=120):
+def update_draws(file_path='data/draws.txt', max_days_back=30):
     draws = load_draws(file_path)
     if not draws:
         last_date = datetime.today() - timedelta(days=max_days_back)
@@ -79,8 +81,6 @@ def update_draws(file_path='data/draws.txt', max_days_back=120):
                 f.write(f"{date_str} {prize}\n")
                 added.append({'date': date_str, 'number': prize})
             current += timedelta(days=1)
-
-    # Salin base hari ini ke base_last
     if added:
         draws = load_draws(file_path)
         latest_base = score_digits(draws)
@@ -88,7 +88,7 @@ def update_draws(file_path='data/draws.txt', max_days_back=120):
         save_base_to_file(latest_base, 'data/base_last.txt')
     return f"✔ {len(added)} draw baru ditambah." if added else "✔ Tiada draw baru ditambah."
 
-# ==== Sistem Skor Base ====
+# ===================== Skor Base & Super Base =====================
 def score_digits(draws, recent_n=30):
     weights = [Counter() for _ in range(4)]
     for i, draw in enumerate(draws[-recent_n:]):
@@ -99,7 +99,6 @@ def score_digits(draws, recent_n=30):
         base.append([digit for digit, _ in pick.most_common(5)])
     return base
 
-# ==== Super Tuner Base (30, 60, 120) ====
 def generate_super_base(draws):
     base_30 = score_digits(draws, 30)
     base_60 = score_digits(draws, 60)
@@ -111,7 +110,7 @@ def generate_super_base(draws):
         super_base.append(combined[:5])
     return super_base
 
-# ==== Fungsi Ramalan (guna Super/Base) ====
+# ===================== Ramalan & Cross Pick =====================
 def generate_predictions(base_digits, n=10):
     all_combinations = set()
     while len(all_combinations) < n:
@@ -119,7 +118,6 @@ def generate_predictions(base_digits, n=10):
         all_combinations.add(combo)
     return sorted(list(all_combinations))
 
-# ==== Fungsi Cross Pick Analysis ====
 def cross_pick_analysis(draws):
     pick_data = [defaultdict(int) for _ in range(4)]
     for draw in draws:
@@ -131,7 +129,7 @@ def cross_pick_analysis(draws):
         lines.append(f"Pick {i+1}: {', '.join(f'{d} ({c}x)' for d, c in common)}")
     return '\n'.join(lines)
 
-# ==== Fungsi Insight AI ====
+# ===================== Insight Terakhir =====================
 def get_last_result_insight(draws):
     if not draws:
         return "Tiada data draw tersedia."
@@ -145,28 +143,24 @@ def get_last_result_insight(draws):
     last_date = last_valid['date']
     insight_lines = [f"📅 Nombor terakhir naik: **{last_number}** pada {last_date}\n"]
 
-    # Frekuensi & Rank
     all_numbers = [d['number'] for d in draws if len(d['number']) == 4]
     digit_counter = [Counter() for _ in range(4)]
     for number in all_numbers:
         for i, digit in enumerate(number):
             digit_counter[i][digit] += 1
 
-    # Guna base_last.txt jika ada
     base_path = 'data/base_last.txt'
     if not os.path.exists(base_path):
         base_digits = score_digits(draws[:-1])
         save_base_to_file(base_digits, base_path)
     base_digits = load_base_from_file(base_path)
 
-    # Cross Pick
     cross_data = [defaultdict(int) for _ in range(4)]
     for number in all_numbers:
         for i, digit in enumerate(number):
             cross_data[i][digit] += 1
     cross_top = [[d for d, _ in sorted(c.items(), key=lambda x: -x[1])[:5]] for c in cross_data]
 
-    # Papar base
     insight_lines.append("\nBase Digunakan:")
     for i, pick in enumerate(base_digits):
         insight_lines.append(f"Pick {i+1}: {' '.join(pick)}")
@@ -196,14 +190,30 @@ def get_last_result_insight(draws):
     insight_lines.append("- Ranking tinggi (Top 3) menunjukkan konsistensi kuat.")
     return '\n'.join(insight_lines)
 
-# ==== Fungsi Paparan Base & Tuner ====
+# ===================== AI Tuner (Filter) =====================
 def ai_tuner(draws):
     base_score = score_digits(draws, recent_n=30)
     filtered = [[d for d in pick if int(d) % 2 == 0 or d in '579'] for pick in base_score]
     return filtered
 
-# ==== Paparan UI Streamlit ====
-st.set_page_config(page_title="Breakcode4D", layout="centered")
+# ===================== Visualisasi (Gradik) =====================
+def show_digit_heatmap(draws):
+    df = pd.DataFrame([list(d['number']) for d in draws[-100:]], columns=["P1", "P2", "P3", "P4"])
+    fig, ax = plt.subplots(figsize=(8, 4))
+    sns.heatmap(df.apply(pd.Series.value_counts).fillna(0).T, annot=True, cmap="YlGnBu", ax=ax)
+    st.pyplot(fig)
+
+def show_digit_distribution(draws):
+    df = pd.DataFrame([list(d['number']) for d in draws], columns=["P1", "P2", "P3", "P4"])
+    fig, axs = plt.subplots(2, 2, figsize=(10, 6))
+    axs = axs.flatten()
+    for i in range(4):
+        sns.countplot(x=df.iloc[:, i], ax=axs[i], palette="Set2")
+        axs[i].set_title(f"Digit di Pick {i+1}")
+    st.pyplot(fig)
+
+# ===================== UI Streamlit =====================
+st.set_page_config(page_title="Breakcode4D Visual", layout="centered")
 st.title("🔮 Breakcode4D Predictor")
 
 if st.button("📥 Update Draw Terkini"):
@@ -212,12 +222,10 @@ if st.button("📥 Update Draw Terkini"):
     st.markdown("### 📋 Base Hari Ini (Salin & Tampal)")
     st.code(display_base_as_text('data/base.txt'), language='text')
 
-# === Load draw & hasil ===
 draws = load_draws()
 
 if draws:
     st.info(f"📅 Tarikh terakhir: **{draws[-1]['date']}** | 📊 Jumlah draw: **{len(draws)}**")
-
     st.subheader("📌 Insight Nombor Terakhir")
     st.text(get_last_result_insight(draws))
 
@@ -227,14 +235,11 @@ if draws:
     for i, pick in enumerate(base_digits):
         st.write(f"Pick {i+1}: {' '.join(pick)}")
 
-    st.text("\n📊 10 Ramalan Terpilih:")
+    st.markdown("📊 10 Ramalan Terpilih:")
     col1, col2 = st.columns(2)
-    with col1:
-        for p in preds[:5]:
-            st.text(p)
-    with col2:
-        for p in preds[5:]:
-            st.text(p)
+    for i in range(5):
+        col1.text(preds[i])
+        col2.text(preds[i+5])
 
     if st.button("🔁 Cross Pick Analysis"):
         st.text(cross_pick_analysis(draws))
@@ -250,5 +255,9 @@ if draws:
         tuned = ai_tuner(draws)
         for i, pick in enumerate(tuned):
             st.write(f"Tuned Pick {i+1}: {' '.join(pick)}")
+
+    st.subheader("📈 Visualisasi Analisis")
+    show_digit_distribution(draws)
+    show_digit_heatmap(draws)
 else:
     st.warning("⚠️ Sila klik '📥 Update Draw Terkini' untuk mula.")
