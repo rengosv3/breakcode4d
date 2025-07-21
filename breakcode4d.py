@@ -51,21 +51,19 @@ def get_1st_prize(date_str):
 
 def update_draws(file_path='data/draws.txt', max_days_back=121):
     draws = load_draws(file_path)
-    last_date = datetime.today() - timedelta(max_days_back) if not draws else datetime.strptime(draws[-1]['date'], "%Y-%m-%d")
+    last_date = datetime.today() - timedelta(days=max_days_back) if not draws else datetime.strptime(draws[-1]['date'], "%Y-%m-%d")
     yesterday = datetime.today() - timedelta(days=1)
     current = last_date + timedelta(days=1)
     added = []
-
     os.makedirs(os.path.dirname(file_path), exist_ok=True)
     with open(file_path, 'a') as f:
         while current.date() <= yesterday.date():
-            date_str = current.strftime("%Y-%m-%d")
-            prize = get_1st_prize(date_str)
+            ds = current.strftime("%Y-%m-%d")
+            prize = get_1st_prize(ds)
             if prize:
-                f.write(f"{date_str} {prize}\n")
-                added.append({'date': date_str, 'number': prize})
+                f.write(f"{ds} {prize}\n")
+                added.append({'date': ds, 'number': prize})
             current += timedelta(days=1)
-
     if added:
         draws = load_draws(file_path)
         latest_base = generate_base(draws, method='frequency', recent_n=50)
@@ -73,92 +71,111 @@ def update_draws(file_path='data/draws.txt', max_days_back=121):
         save_base_to_file(latest_base, 'data/base_last.txt')
     return f"✔ {len(added)} draw baru ditambah." if added else "✔ Tiada draw baru ditambah."
 
-# ===================== STRATEGY BASE =====================
-def generate_base(draws, method='frequency', recent_n=50):
-    return {
-        'frequency': generate_by_frequency,
-        'gap': generate_by_gap,
-        'hybrid': generate_hybrid,
-        'qaisara': generate_qaisara
-    }.get(method, generate_by_frequency)(draws, recent_n)
-
+# ===================== STRATEGI ASAS =====================
 def generate_by_frequency(draws, recent_n=50):
-    recent_draws = [d['number'] for d in draws[-recent_n:]]
+    recent = [d['number'] for d in draws[-recent_n:]]
     counters = [Counter() for _ in range(4)]
-    for number in recent_draws:
-        for i, digit in enumerate(number):
-            counters[i][digit] += 1
-    return [[d for d, _ in c.most_common(5)] + [str(random.randint(0,9)) for _ in range(5 - len(c))] for c in counters]
+    for num in recent:
+        for i, d in enumerate(num):
+            counters[i][d] += 1
+    return [[d for d,_ in c.most_common(5)] for c in counters]
 
 def generate_by_gap(draws, recent_n=50):
-    recent_draws = [d['number'] for d in draws[-recent_n:]]
+    recent = [d['number'] for d in draws[-recent_n:]]
     last_seen = [defaultdict(lambda: -1) for _ in range(4)]
-    gap_scores = [defaultdict(int) for _ in range(4)]
-
-    for idx, number in enumerate(recent_draws[::-1]):
-        for pos, digit in enumerate(number):
-            if last_seen[pos][digit] != -1:
-                gap_scores[pos][digit] += idx - last_seen[pos][digit]
-            last_seen[pos][digit] = idx
-
-    picks = []
-    for gs in gap_scores:
-        sorted_digits = sorted(gs.items(), key=lambda x: -x[1])
-        top5 = [d for d, _ in sorted_digits[:5]]
-        while len(top5) < 5:
-            top5.append(str(random.randint(0,9)))
-        picks.append(top5)
+    scores = [defaultdict(int) for _ in range(4)]
+    for idx, num in enumerate(reversed(recent)):
+        for i, d in enumerate(num):
+            if last_seen[i][d]>=0:
+                scores[i][d] += idx - last_seen[i][d]
+            last_seen[i][d] = idx
+    picks=[]
+    for sc in scores:
+        top = [d for d,_ in sorted(sc.items(), key=lambda x:-x[1])[:5]]
+        while len(top)<5: top.append(str(random.randint(0,9)))
+        picks.append(top)
     return picks
 
-def generate_hybrid(draws, recent_n=10):
-    freq = generate_by_frequency(draws, recent_n)
-    gap = generate_by_gap(draws, recent_n)
-    picks = []
-    for f, g in zip(freq, gap):
-        combo = list(set(f + g))
+def generate_hybrid(draws, recent_n=50):
+    f = generate_by_frequency(draws, recent_n)
+    g = generate_by_gap(draws, recent_n)
+    picks=[]
+    for fa,ga in zip(f,g):
+        combo=list(set(fa+ga))
         random.shuffle(combo)
-        picks.append(combo[:5] + [str(random.randint(0,9)) for _ in range(5 - len(combo))])
+        picks.append(combo[:5])
     return picks
 
-def generate_qaisara(draws, recent_n=10):
-    base_freq = generate_by_frequency(draws, recent_n)
-    base_gap = generate_by_gap(draws, recent_n)
-    base_hybrid = generate_hybrid(draws, recent_n)
+# ===================== STRATEGI QAISARA =====================
+def strategy_qaisara(draws, strategy_funcs, lookback=50):
+    recent = draws[-lookback:]
+    hits = {}
+    digit_scores = {name: Counter() for name in strategy_funcs}
 
-    combined = []
-    for i in range(4):
-        all_digits = base_freq[i] + base_gap[i] + base_hybrid[i]
-        counter = Counter(all_digits)
-        top_5 = [d for d, _ in counter.most_common(5)]
-        while len(top_5) < 5:
-            top_5.append(str(random.randint(0, 9)))
-        combined.append(top_5)
-    return combined
-    
+    # Kira hit-rate dan kumpul semua digit pos-per-pos
+    for name, func in strategy_funcs.items():
+        total = 0
+        counter = Counter()
+        for i, draw in enumerate(recent):
+            history = draws[:-(lookback - i)]
+            if not history: continue
+            base = func(history)
+            res = draw['number']
+            hit_this=False
+            for pos in range(4):
+                pos_digits = base[pos]
+                counter.update(pos_digits)
+                if res[pos] in pos_digits:
+                    hit_this = True
+            if hit_this:
+                total += 1
+        hits[name] = total / lookback
+        digit_scores[name] = counter
+
+    final = Counter()
+    for name, cnt in digit_scores.items():
+        w = hits.get(name,0)
+        for d, c in cnt.items():
+            final[d] += c * w
+
+    sorted_d = [d for d,_ in final.most_common()]
+    trimmed = sorted_d[1:-1] if len(sorted_d)>=7 else sorted_d
+    # penuhi 5 untuk setiap posisi
+    base = [ trimmed[:5] for _ in range(4) ]
+    return base
+
+# ===================== GENERATE BASE (FAÇADE) =====================
+def generate_base(draws, method='frequency', recent_n=50):
+    funcs = {
+        'frequency': generate_by_frequency,
+        'gap': generate_by_gap,
+        'hybrid': generate_hybrid
+    }
+    if method=='qaisara':
+        return strategy_qaisara(draws, funcs, lookback=recent_n)
+    return funcs.get(method, generate_by_frequency)(draws, recent_n)
+
 # ===================== BACKTEST =====================
 def run_backtest(draws, strategy='hybrid', recent_n=10):
-    if len(draws) < recent_n + 10:
-        st.warning("❗ Tidak cukup draw untuk backtest.")
-        return
-
-    def match_insight(fp, base):
+    if len(draws) < recent_n+10:
+        st.warning("❗ Tidak cukup draw untuk backtest."); return
+    def match(fp, base):
         return ["✅" if fp[i] in base[i] else "❌" for i in range(4)]
-
-    results = []
+    rows=[]
     for i in range(recent_n):
-        test_draw = draws[-(i+1)]
-        base_draws = draws[:-(i+1)]
-        if len(base_draws) < 10: continue
-        base = generate_base(base_draws, method=strategy, recent_n=recent_n)
-        results.append({
-            "Tarikh": test_draw['date'],
-            "Result 1st": test_draw['number'],
-            "Insight": ' '.join(f"P{i+1}:{s}" for i, s in enumerate(match_insight(test_draw['number'], base)))
+        td=draws[-(i+1)]
+        hist=draws[:-(i+1)]
+        if len(hist)<10: continue
+        b=generate_base(hist, method=strategy, recent_n=recent_n)
+        ins=match(td['number'],b)
+        rows.append({
+            "Tarikh": td['date'],
+            "Result 1st": td['number'],
+            "Insight": ' '.join(f"P{j+1}:{s}" for j,s in enumerate(ins))
         })
-
-    df = pd.DataFrame(results[::-1])
-    matched = sum("✅" in r["Insight"] for r in results)
-    st.success(f"🎉 Jumlah digit match: {matched} daripada {recent_n}")
+    df=pd.DataFrame(rows[::-1])
+    ok=sum("✅" in r["Insight"] for r in rows)
+    st.success(f"🎉 Jumlah digit match: {ok} daripada {recent_n}")
     st.dataframe(df, use_container_width=True)
 
 # ===================== UI =====================
@@ -169,17 +186,18 @@ st.title("🔮 Breakcode4D Predictor (GD Lotto)")
 col1, col2 = st.columns(2)
 with col1:
     if st.button("📥 Update Draw Terkini"):
-        msg = update_draws()
-        st.success(msg)
+        m=update_draws()
+        st.success(m)
         st.markdown("### 📋 Base Hari Ini")
-        st.code('\n'.join([' '.join(p) for p in load_base_from_file()]), language='text')
-
+        base=load_base_from_file()
+        st.code('\n'.join(' '.join(p) for p in base), language='text')
 with col2:
     st.markdown("""
     <a href="https://batman11.net/RegisterByReferral.aspx?MemberCode=BB1845" target="_blank">
-        <button style="width:100%;padding:0.6em;font-size:16px;background:#4CAF50;color:white;border:none;border-radius:5px;">
-            📝 Register Sini Batman 11 dan dapatkan BONUS!!!
-        </button>
+      <button style="width:100%;padding:0.6em;font-size:16px;
+          background:#4CAF50;color:white;border:none;border-radius:5px;">
+        📝 Register Sini Batman 11 dan dapatkan BONUS!!!
+      </button>
     </a>
     """, unsafe_allow_html=True)
 
@@ -188,45 +206,45 @@ if not draws:
     st.warning("⚠️ Sila klik 'Update Draw Terkini' untuk mula.")
 else:
     st.info(f"📅 Tarikh terakhir: **{draws[-1]['date']}** | 📊 Jumlah draw: **{len(draws)}**")
-    tabs = st.tabs(["📌 Insight", "🧠 Ramalan", "🔁 Backtest", "📋 Draw List"])
+    tabs = st.tabs(["📌 Insight","🧠 Ramalan","🔁 Backtest","📋 Draw List"])
 
     with tabs[3]:
         st.dataframe(pd.DataFrame(draws), use_container_width=True)
 
     with tabs[0]:
         st.markdown("### 📌 Insight Terakhir")
-        last_draw = draws[-1]
+        last = draws[-1]
         base = load_base_from_file()
-        if not base or len(base) != 4:
+        if not base or len(base)!=4:
             st.warning("⚠️ Base belum dijana atau tidak lengkap.")
         else:
-            st.markdown(f"**Tarikh Draw:** `{last_draw['date']}`")
-            st.markdown(f"**Nombor 1st Prize:** `{last_draw['number']}`")
-            cols = st.columns(4)
+            st.markdown(f"**Tarikh Draw:** `{last['date']}`")
+            st.markdown(f"**Nombor 1st Prize:** `{last['number']}`")
+            cols=st.columns(4)
             for i in range(4):
-                digit = last_draw['number'][i]
-                (cols[i].success if digit in base[i] else cols[i].error)(
-                    f"Pos {i+1}: {'✅' if digit in base[i] else '❌'} `{digit}` {'' if digit in base[i] else 'tiada'} dalam {base[i]}"
-                )
+                d=last['number'][i]
+                fn = cols[i].success if d in base[i] else cols[i].error
+                fn(f"Pos {i+1}: {'✅' if d in base[i] else '❌'} `{d}` dalam {base[i]}")
             st.markdown("### 📋 Base Digunakan:")
-            for i, b in enumerate(base):
+            for i,b in enumerate(base):
                 st.text(f"Pos {i+1}: {' '.join(b)}")
 
     with tabs[1]:
         st.markdown("### 🧠 Ramalan Base")
-        strat = st.selectbox("Pilih strategi base untuk ramalan:", ['hybrid', 'frequency', 'gap', 'qaisara'])
-        recent_n = st.slider("Jumlah draw terkini digunakan untuk base:", 5, 100, 30, 5)
-        base = generate_base(draws, method=strat, recent_n=recent_n)
-        for i, p in enumerate(base): st.text(f"Pick {i+1}: {' '.join(p)}")
-        preds = []
-        while len(preds) < 10:
-            pred = ''.join(random.choice(base[i]) for i in range(4))
-            if pred not in preds: preds.append(pred)
+        strat = st.selectbox("Pilih strategi:", ['frequency','gap','hybrid','qaisara'])
+        rn = st.slider("Jumlah draw untuk base:",5,100,30,5)
+        b = generate_base(draws, method=strat, recent_n=rn)
+        for i,p in enumerate(b):
+            st.text(f"Pick {i+1}: {' '.join(p)}")
+        preds=[]
+        while len(preds)<10:
+            pr=''.join(random.choice(b[i]) for i in range(4))
+            if pr not in preds: preds.append(pr)
         st.code('\n'.join(preds), language='text')
 
     with tabs[2]:
         st.markdown("### 🔁 Backtest Base")
-        strat = st.selectbox("Pilih strategi base untuk backtest:", ['hybrid', 'frequency', 'gap', 'qaisara'])
-        recent_n = st.slider("Jumlah draw terkini untuk backtest:", 5, 50, 10)
+        strat = st.selectbox("Strategi backtest:", ['frequency','gap','hybrid','qaisara'])
+        rn=st.slider("Draw untuk backtest:",5,50,10)
         if st.button("🚀 Jalankan Backtest"):
-            run_backtest(draws, strategy=strat, recent_n=recent_n)
+            run_backtest(draws, strategy=strat, recent_n=rn)
