@@ -57,9 +57,19 @@ def update_draws(file_path='data/draws.txt', max_days_back=30):
 def get_last_result_insight(draws):
     if not draws:
         return "Tiada data draw tersedia."
-    last_draw = draws[-1]
-    last_number = last_draw['number']
-    last_date = last_draw['date']
+
+    today_str = datetime.today().strftime("%Y-%m-%d")
+    last_valid = None
+    for d in reversed(draws):
+        if d['date'] < today_str:
+            last_valid = d
+            break
+
+    if not last_valid:
+        return "Tiada data draw semalam tersedia."
+
+    last_number = last_valid['number']
+    last_date = last_valid['date']
     all_numbers = [d['number'] for d in draws if len(d['number']) == 4]
     digit_counter = [Counter() for _ in range(4)]
     for number in all_numbers:
