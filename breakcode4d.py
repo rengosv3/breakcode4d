@@ -1,107 +1,187 @@
 import streamlit as st
-import random
-from datetime import datetime
 import os
+import re
+import requests
+from datetime import datetime, timedelta
+from collections import Counter, defaultdict
+import random
 
-# ==== Tetapan Laluan Fail ====
-DATA_DIR = "data"
-DRAW_PATH = os.path.join(DATA_DIR, "draw.txt")
-BASE_PATH = os.path.join("output", "base.txt")
-RAMALAN_PATH = os.path.join("output", "ramalan.txt")
-
-# ==== Fungsi: Muat Data Draw ====
-def load_draws(n=30):
-    if not os.path.exists(DRAW_PATH):
+# ==== Fungsi Muat Draw.txt ====
+def load_draws(file_path='data/draws.txt'):
+    if not os.path.exists(file_path):
         return []
-    with open(DRAW_PATH, "r") as f:
-        lines = f.readlines()
-    lines = [line.strip() for line in lines if line.strip()]
-    return lines[-n:]
+    draws = []
+    with open(file_path, 'r') as f:
+        for line in f:
+            parts = line.strip().split()
+            if len(parts) == 2:
+                draws.append({'date': parts[0], 'number': parts[1]})
+    return draws
 
-# ==== Fungsi: Simulasi Kemas Kini Draw ====
-def update_draw_data():
-    today = datetime.today().strftime("%Y-%m-%d")
-    fake_number = f"{random.randint(0, 9999):04d}"
-    new_line = f"{today} {fake_number}\n"
-    with open(DRAW_PATH, "a") as f:
-        f.write(new_line)
-    return new_line.strip()
+# ==== Fungsi Update Draw ====
+def get_1st_prize(date_str):
+    url = f"https://gdlotto.net/results/ajax/_result.aspx?past=1&d={date_str}"
+    try:
+        resp = requests.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=5)
+        if resp.status_code != 200:
+            return None
+        html = resp.text
+        match = re.search(r'id="1stPz">(\d{4})<', html)
+        return match.group(1) if match else None
+    except:
+        return None
 
-# ==== Fungsi: Kira Frequency Digit ====
-def digit_frequency(draws):
-    freq = [0] * 10
-    for entry in draws:
-        _, number = entry.split()
-        for digit in number:
-            freq[int(digit)] += 1
-    return freq
+def update_draws(file_path='data/draws.txt', max_days_back=30):
+    draws = load_draws(file_path)
+    if not draws:
+        last_date = datetime.today() - timedelta(days=max_days_back)
+    else:
+        last_date = datetime.strptime(draws[-1]['date'], "%Y-%m-%d")
+    today = datetime.today()
+    current = last_date + timedelta(days=1)
+    added = []
+    os.makedirs(os.path.dirname(file_path), exist_ok=True)
+    with open(file_path, 'a') as f:
+        while current <= today:
+            date_str = current.strftime("%Y-%m-%d")
+            prize = get_1st_prize(date_str)
+            if prize:
+                f.write(f"{date_str} {prize}\n")
+                added.append(prize)
+            current += timedelta(days=1)
+    return f"✔ {len(added)} draw baru ditambah." if added else "✔ Tiada draw baru ditambah."
 
-# ==== Fungsi: Pilih Top 5 Digit ====
-def select_top_digits(freq):
-    return sorted(range(10), key=lambda x: freq[x], reverse=True)[:5]
+# ==== Fungsi Analisis Insight ====
+def get_last_result_insight(draws):
+    if not draws:
+        return "Tiada data draw tersedia."
+    last_draw = draws[-1]
+    last_number = last_draw['number']
+    last_date = last_draw['date']
+    all_numbers = [d['number'] for d in draws if len(d['number']) == 4]
+    digit_counter = [Counter() for _ in range(4)]
+    for number in all_numbers:
+        for i, digit in enumerate(number):
+            digit_counter[i][digit] += 1
+    insight_lines = [f"📅 Nombor terakhir naik: {last_number} pada {last_date}\n"]
+    for i, digit in enumerate(last_number):
+        freq = digit_counter[i][digit]
+        rank = sorted(digit_counter[i].values(), reverse=True).index(freq) + 1
+        insight_lines.append(f"Pick {i+1}: Digit '{digit}' ranking #{rank} (frekuensi: {freq}x)")
+    insight_lines.append("\n💡 Kemungkinan naik semula:")
+    insight_lines.append("- Digit ranking tinggi biasanya konsisten.")
+    return '\n'.join(insight_lines)
 
-# ==== Fungsi: Jana Base.txt ====
-def generate_base(draws):
-    picks = []
-    for i in range(4):  # Pick 1–4
-        freq = [0] * 10
-        for entry in draws:
-            _, number = entry.split()
-            digit = number[i]
-            freq[int(digit)] += 1
-        top_digits = select_top_digits(freq)
-        picks.append(top_digits)
-    with open(BASE_PATH, "w") as f:
-        for i, pick in enumerate(picks, 1):
-            f.write(f"Pick {i}: {' '.join(map(str, pick))}\n")
-    return picks
+# ==== Fungsi Pilih Digit Terbaik ====
+def generate_base_digits(draws, top_n=5, recent_n=20):
+    picks = [Counter() for _ in range(4)]
+    for draw in draws[-recent_n:]:
+        number = draw['number']
+        for i, digit in enumerate(number):
+            picks[i][digit] += 1
+    base = []
+    for counter in picks:
+        base.append([digit for digit, _ in counter.most_common(top_n)])
+    return base
 
-# ==== Fungsi: Jana 10 Kombinasi Ramalan ====
-def generate_predictions(picks):
-    all_combos = []
-    while len(all_combos) < 10:
-        combo = [str(random.choice(pick)) for pick in picks]
-        if combo not in all_combos:
-            all_combos.append(combo)
-    with open(RAMALAN_PATH, "w") as f:
-        for i, combo in enumerate(all_combos, 1):
-            f.write(f"{i:02d}. {''.join(combo)}\n")
-    return all_combos
+# ==== Sistem Skor Tambahan ====
+def score_digits(draws, recent_n=20):
+    weights = [Counter() for _ in range(4)]
+    for i, draw in enumerate(draws[-recent_n:]):
+        for j, digit in enumerate(draw['number']):
+            weights[j][digit] += recent_n - i
+    base = []
+    for pick in weights:
+        base.append([digit for digit, _ in pick.most_common(5)])
+    return base
 
-# ==== UI ====
+# ==== Fungsi Ramalan ====
+def generate_predictions(base_digits, n=10):
+    all_combinations = set()
+    while len(all_combinations) < n:
+        combo = ''.join(random.choice(base_digits[i]) for i in range(4))
+        all_combinations.add(combo)
+    return sorted(list(all_combinations))
+
+# ==== Fungsi Cross Pick ====
+def cross_pick_analysis(draws):
+    pick_data = [defaultdict(int) for _ in range(4)]
+    for draw in draws:
+        for i, digit in enumerate(draw['number']):
+            pick_data[i][digit] += 1
+    lines = []
+    for i, pd in enumerate(pick_data):
+        common = sorted(pd.items(), key=lambda x: -x[1])[:5]
+        lines.append(f"Pick {i+1}: {', '.join(f'{d} ({c}x)' for d, c in common)}")
+    return '\n'.join(lines)
+
+# ==== Fungsi Tuner AI ====
+def ai_tuner(draws):
+    base_score = score_digits(draws, recent_n=30)
+    filtered = [[d for d in pick if int(d) % 2 == 0 or d in '579'] for pick in base_score]
+    return filtered
+
+# ==== Cadangan Sistem Terbaik ====
+def best_system_suggestion(draws):
+    return (
+        "1. Gunakan 20–30 draw terkini sahaja untuk analisis.\n"
+        "2. Pilih 5 digit paling kerap setiap Pick berdasarkan skor.\n"
+        "3. Elak guna digit sama pada semua Pick.\n"
+        "4. Kombinasi ganjil-genap campuran stabil.\n"
+        "5. Pantau digit yang muncul semula dalam 3 draw."
+    )
+
+# ==== Streamlit UI ====
 st.set_page_config(page_title="Breakcode4D", layout="centered")
-st.title("🔮 Breakcode4D – Sistem Ramalan 4D")
+st.title("🔮 Breakcode4D Predictor")
 
-st.markdown("Ramalan berdasarkan 30 draw terakhir")
+# Butang update draw
+if st.button("📥 Update Draw Terkini"):
+    st.success(update_draws())
 
-# --- Butang Kemas Kini Draw ---
-if st.button("🔁 Kemas Kini Draw"):
-    new_result = update_draw_data()
-    st.success(f"Kemas Kini Berjaya: {new_result}")
-    st.stop()  # Gantikan rerun, supaya reload berlaku bersih
-
-# --- Papar Keputusan Terkini ---
+# Muatkan draw
 draws = load_draws()
+
 if draws:
-    last_date, last_number = draws[-1].split()
-    st.markdown(f"📅 **Keputusan Terkini:** `{last_date}` - **{last_number}**")
+    last_date = draws[-1]['date']
+    total_draws = len(draws)
+    st.info(f"📅 Tarikh terakhir: **{last_date}** | 📊 Jumlah draw: **{total_draws}**")
 
-st.divider()
+    st.subheader("🧠 Analisis & Ramalan")
 
-# --- Butang Jana Ramalan ---
-if st.button("🧠 Jana Ramalan"):
-    picks = generate_base(draws)
-    ramalan = generate_predictions(picks)
-    st.success("Ramalan berjaya dijana!")
+    # Butang jana semula
+    if st.button("🧠 Jana Ramalan Baharu"):
+        base = score_digits(draws)
+        preds = generate_predictions(base)
+    else:
+        base = score_digits(draws)
+        preds = generate_predictions(base)
 
-    # Papar hasil ramalan
-    st.subheader("🔢 10 Ramalan Breakcode4D:")
-    ramalan_baris_1 = ramalan[:5]
-    ramalan_baris_2 = ramalan[5:]
-    baris_1 = "  ".join("**" + "".join(r) + "**" for r in ramalan_baris_1)
-    baris_2 = "  ".join("**" + "".join(r) + "**" for r in ramalan_baris_2)
-    st.markdown(f"<div style='text-align: center; font-size: 24px;'>{baris_1}<br>{baris_2}</div>", unsafe_allow_html=True)
+    for i, pick in enumerate(base):
+        st.write(f"Pick {i+1}: {' '.join(pick)}")
 
-# --- Debug: Lihat Draw.txt ---
-with st.expander("📖 Lihat 30 Draw Terakhir"):
-    st.text("\n".join(draws))
+    st.text("\n📊 10 Ramalan Terpilih:")
+    col1, col2 = st.columns(2)
+    with col1:
+        for p in preds[:5]:
+            st.text(p)
+    with col2:
+        for p in preds[5:]:
+            st.text(p)
+
+    st.subheader("📌 Insight Nombor Terakhir")
+    st.text(get_last_result_insight(draws))
+
+    if st.button("🔁 Cross Pick Analysis"):
+        st.text(cross_pick_analysis(draws))
+
+    if st.button("🧪 Tuner AI (Auto Filter)"):
+        tuned = ai_tuner(draws)
+        for i, pick in enumerate(tuned):
+            st.write(f"Tuned Pick {i+1}: {' '.join(pick)}")
+
+    if st.button("💡 Cadangan Sistem Terbaik Breakcode4D"):
+        st.info(best_system_suggestion(draws))
+
+else:
+    st.warning("⚠️ Sila klik '📥 Update Draw Terkini' untuk mula.")
