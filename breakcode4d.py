@@ -195,11 +195,6 @@ else:
     st.info(f"📅 Tarikh terakhir: **{draws[-1]['date']}** | 📊 Jumlah draw: **{len(draws)}**")
     tabs = st.tabs(["📋 Draw List", "📌 Insight", "🧠 Ramalan", "🔁 Backtest"])
 
-    with tabs[3]:
-        st.markdown("### 📋 Senarai Semua Draw")
-        df = pd.DataFrame(draws)
-        st.dataframe(df, use_container_width=True)
-
     with tabs[0]:
     st.markdown("### 📌 Insight Terakhir")
 
@@ -247,3 +242,8 @@ else:
         backtest_recent_n = st.slider("Jumlah draw terkini untuk backtest:", 5, 50, 10, 1)
         if st.button("🚀 Jalankan Backtest"):
             run_backtest(draws, strategy=backtest_strategy, recent_n=backtest_recent_n)
+            
+      with tabs[3]:
+          st.markdown("### 📋 Senarai Semua Draw")
+          df = pd.DataFrame(draws)
+          st.dataframe(df, use_container_width=True)
