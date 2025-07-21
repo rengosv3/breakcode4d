@@ -1,0 +1,60 @@
+# backtest_app.py
+import streamlit as st
+from modules.base_analysis import load_draws, load_base_from_file
+from modules.ai_prediction import generate_predictions
+import pandas as pd
+
+st.set_page_config(page_title="Breakcode4D Backtest", layout="wide")
+
+def perform_backtest(draws, base_path='data/base.txt', num_days=10):
+    if len(draws) < num_days:
+        st.warning("❗ Tidak cukup draw untuk backtest.")
+        return
+
+    results = []
+    st.markdown("# 🔁 Backtest 10 Hari Terakhir")
+
+    for i in range(num_days):
+        draw = draws[-(i+1)]
+        draw_date, first_prize = draw[0], draw[1]
+
+        base = load_base_from_file(base_path)
+        if not base:
+            st.error(f"Base tidak dijumpai di {base_path}")
+            return
+
+        predictions = generate_predictions(base, n=4)
+        insight = []
+        for p in predictions:
+            if p == first_prize:
+                insight.append("✅")
+            else:
+                insight.append("❌")
+
+        results.append({
+            "Tarikh": draw_date,
+            "Result 1st": first_prize,
+            "P1": predictions[0],
+            "P2": predictions[1],
+            "P3": predictions[2],
+            "P4": predictions[3],
+            "Insight": f"P1:{insight[0]} P2:{insight[1]} P3:{insight[2]} P4:{insight[3]}"
+        })
+
+        st.markdown(f"""
+        ### 🎯 Tarikh: {draw_date}
+        **Result 1st**: `{first_prize}`  
+        **Base (sebelum {draw_date}):**
+        """)
+        for j, b in enumerate(base):
+            st.text(f"P{j+1}: {' '.join(b)}")
+        st.markdown(f"**Insight:** `{results[-1]['Insight']}`")
+        st.markdown("---")
+
+    df = pd.DataFrame(results[::-1])
+    st.markdown("### 📊 Ringkasan Backtest:")
+    st.dataframe(df, use_container_width=True)
+
+# Panggil draw
+draws = load_draws()
+perform_backtest(draws)
