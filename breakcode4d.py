@@ -62,13 +62,13 @@ def update_draws(file_path='data/draws.txt', max_days_back=61):
 
     if added:
         draws = load_draws(file_path)
-        latest_base = generate_base(draws, method='hybrid', recent_n=30)
+        latest_base = generate_base(draws, method='frequency', recent_n=50)
         save_base_to_file(latest_base, 'data/base.txt')
         save_base_to_file(latest_base, 'data/base_last.txt')
     return f"✔ {len(added)} draw baru ditambah." if added else "✔ Tiada draw baru ditambah."
 
 # ===================== Strategy Base =====================
-def generate_base(draws, method='frequency', recent_n=10):
+def generate_base(draws, method='frequency', recent_n=50):
     if method == 'frequency':
         return generate_by_frequency(draws, recent_n)
     elif method == 'gap':
@@ -78,7 +78,7 @@ def generate_base(draws, method='frequency', recent_n=10):
     else:
         return generate_by_frequency(draws, recent_n)
 
-def generate_by_frequency(draws, recent_n=10):
+def generate_by_frequency(draws, recent_n=50):
     recent_draws = [d['number'] for d in draws[-recent_n:]]
     counters = [Counter() for _ in range(4)]
     for number in recent_draws:
@@ -93,7 +93,7 @@ def generate_by_frequency(draws, recent_n=10):
         picks.append(top5)
     return picks
 
-def generate_by_gap(draws, recent_n=10):
+def generate_by_gap(draws, recent_n=50):
     recent_draws = [d['number'] for d in draws[-recent_n:]]
     last_seen = [defaultdict(lambda: -1) for _ in range(4)]
     gap_scores = [defaultdict(int) for _ in range(4)]
@@ -193,7 +193,7 @@ if not draws:
     st.warning("⚠️ Sila klik 'Update Draw Terkini' untuk mula.")
 else:
     st.info(f"📅 Tarikh terakhir: **{draws[-1]['date']}** | 📊 Jumlah draw: **{len(draws)}**")
-    tabs = st.tabs(["📋 Draw List", "📌 Insight", "🧠 Ramalan", "🔁 Backtest"])
+    tabs = st.tabs(["📌 Insight", "🧠 Ramalan", "🔁 Backtest", "📋 Draw List"])
 
     with tabs[3]:
         st.markdown("### 📋 Senarai Semua Draw")
