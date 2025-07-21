@@ -195,13 +195,13 @@ else:
     st.info(f"📅 Tarikh terakhir: **{draws[-1]['date']}** | 📊 Jumlah draw: **{len(draws)}**")
     tabs = st.tabs(["📋 Draw List", "📌 Insight", "🧠 Ramalan", "🔁 Backtest"])
 
-    with tabs[0]:
+    with tabs[3]:
         st.markdown("### 📋 Senarai Semua Draw")
         df = pd.DataFrame(draws)
         st.dataframe(df, use_container_width=True)
 
-    with tabs[1]:
-    st.markdown("### 📌 Insight Terakhir")
+    with tabs[0]:
+        st.markdown("### 📌 Insight Terakhir")
 
     if len(draws) < 1:
         st.warning("⚠️ Tiada draw untuk dianalisis.")
@@ -227,7 +227,7 @@ else:
             for i, b in enumerate(base):
                 st.text(f"Pos {i+1}: {' '.join(b)}")
 
-    with tabs[2]:
+    with tabs[1]:
         st.markdown("### 🧠 Ramalan Base")
         base_strategy = st.selectbox("Pilih strategi base untuk ramalan:", ['hybrid', 'frequency', 'gap'])
         recent_n = st.slider("Jumlah draw terkini digunakan untuk base:", 5, 100, 30, 5)
@@ -241,7 +241,7 @@ else:
                 preds.append(pred)
         st.code('\n'.join(preds), language='text')
 
-    with tabs[3]:
+    with tabs[2]:
         st.markdown("### 🔁 Backtest Base")
         backtest_strategy = st.selectbox("Pilih strategi base untuk backtest:", ['hybrid', 'frequency', 'gap'])
         backtest_recent_n = st.slider("Jumlah draw terkini untuk backtest:", 5, 50, 10, 1)
