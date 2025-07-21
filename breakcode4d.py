@@ -1,6 +1,6 @@
 import streamlit as st
 import random
-from datetime import datetime, timedelta
+from datetime import datetime
 import os
 
 # ==== Tetapan Laluan Fail ====
@@ -16,15 +16,16 @@ def load_draws(n=30):
     with open(DRAW_PATH, "r") as f:
         lines = f.readlines()
     lines = [line.strip() for line in lines if line.strip()]
-    return lines[-n:]  # Ambil hanya 30 draw terakhir
+    return lines[-n:]
 
 # ==== Fungsi: Simulasi Kemas Kini Draw ====
-def update_draw_data(file_path=DRAW_PATH):
+def update_draw_data():
     today = datetime.today().strftime("%Y-%m-%d")
     fake_number = f"{random.randint(0, 9999):04d}"
     new_line = f"{today} {fake_number}\n"
-    with open(file_path, "a") as f:
+    with open(DRAW_PATH, "a") as f:
         f.write(new_line)
+    return new_line.strip()
 
 # ==== Fungsi: Kira Frequency Digit ====
 def digit_frequency(draws):
@@ -67,16 +68,17 @@ def generate_predictions(picks):
             f.write(f"{i:02d}. {''.join(combo)}\n")
     return all_combos
 
-# ==== Streamlit UI ====
+# ==== UI ====
 st.set_page_config(page_title="Breakcode4D", layout="centered")
 st.title("🔮 Breakcode4D – Sistem Ramalan 4D")
+
 st.markdown("Ramalan berdasarkan 30 draw terakhir")
 
 # --- Butang Kemas Kini Draw ---
 if st.button("🔁 Kemas Kini Draw"):
-    update_draw_data()
-    st.success("Data draw berjaya dikemas kini.")
-    st.experimental_rerun()
+    new_result = update_draw_data()
+    st.success(f"Kemas Kini Berjaya: {new_result}")
+    st.stop()  # Gantikan rerun, supaya reload berlaku bersih
 
 # --- Papar Keputusan Terkini ---
 draws = load_draws()
@@ -100,6 +102,6 @@ if st.button("🧠 Jana Ramalan"):
     baris_2 = "  ".join("**" + "".join(r) + "**" for r in ramalan_baris_2)
     st.markdown(f"<div style='text-align: center; font-size: 24px;'>{baris_1}<br>{baris_2}</div>", unsafe_allow_html=True)
 
-# --- Debug: Lihat Draw.txt (optional) ---
+# --- Debug: Lihat Draw.txt ---
 with st.expander("📖 Lihat 30 Draw Terakhir"):
     st.text("\n".join(draws))
