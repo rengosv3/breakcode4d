@@ -9,7 +9,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-# ===================== Fungsi Muat Draw =====================
+# ===================== Fungsi Muat Draw.txt =====================
 def load_draws(file_path='data/draws.txt'):
     if not os.path.exists(file_path):
         return []
@@ -88,7 +88,7 @@ def update_draws(file_path='data/draws.txt', max_days_back=30):
         save_base_to_file(latest_base, 'data/base_last.txt')
     return f"✔ {len(added)} draw baru ditambah." if added else "✔ Tiada draw baru ditambah."
 
-# ===================== Skor & Super Base =====================
+# ===================== Skor Base & Super Base =====================
 def score_digits(draws, recent_n=30):
     weights = [Counter() for _ in range(4)]
     for i, draw in enumerate(draws[-recent_n:]):
@@ -110,7 +110,7 @@ def generate_super_base(draws):
         super_base.append(combined[:5])
     return super_base
 
-# ===================== Ramalan & Cross =====================
+# ===================== Ramalan & Cross Pick =====================
 def generate_predictions(base_digits, n=10):
     all_combinations = set()
     while len(all_combinations) < n:
@@ -133,6 +133,7 @@ def cross_pick_analysis(draws):
 def get_last_result_insight(draws):
     if not draws:
         return "Tiada data draw tersedia."
+
     today_str = datetime.today().strftime("%Y-%m-%d")
     last_valid = next((d for d in reversed(draws) if d['date'] < today_str), None)
     if not last_valid:
@@ -160,7 +161,7 @@ def get_last_result_insight(draws):
             cross_data[i][digit] += 1
     cross_top = [[d for d, _ in sorted(c.items(), key=lambda x: -x[1])[:5]] for c in cross_data]
 
-    insight_lines.append("📋 **Base Digunakan:**")
+    insight_lines.append("**Base Digunakan:**")
     for i, pick in enumerate(base_digits):
         insight_lines.append(f"- Pick {i+1}: {' '.join(pick)}")
     insight_lines.append("")
@@ -184,7 +185,7 @@ def get_last_result_insight(draws):
             f"Pick {i+1}: Digit '{digit}' - Ranking #{rank}, Base: {in_base}, Cross: {in_cross} → **{label}**"
         )
 
-    insight_lines.append("\n💡 AI Insight:")
+    insight_lines.append("\n💡 **AI Insight:**")
     insight_lines.append("- Digit dalam Base & Cross berkemungkinan besar naik semula.")
     insight_lines.append("- Ranking tinggi (Top 3) menunjukkan konsistensi kuat.")
     return '\n'.join(insight_lines)
@@ -215,17 +216,31 @@ def show_digit_distribution(draws):
 st.set_page_config(page_title="Breakcode4D Visual", layout="centered")
 st.title("🔮 Breakcode4D Predictor")
 
-if st.button("📥 Update Draw Terkini"):
-    msg = update_draws()
-    st.success(msg)
-    st.markdown("### 📋 Base Hari Ini (Salin & Tampal)")
-    st.code(display_base_as_text('data/base.txt'), language='text')
+colA, colB = st.columns([1, 1])
+
+with colA:
+    if st.button("📥 Update Draw Terkini"):
+        msg = update_draws()
+        st.success(msg)
+        st.markdown("### 📋 Base Hari Ini (Salin & Tampal)")
+        st.code(display_base_as_text('data/base.txt'), language='text')
+
+with colB:
+    st.markdown(
+        """
+        <a href="https://batman11.net/RegisterByReferral.aspx?MemberCode=BB1845" target="_blank">
+            <button style="background-color:#4CAF50;color:white;padding:0.5em 1em;border:none;border-radius:5px;cursor:pointer;font-weight:bold;">
+                🔗 Register Sini
+            </button>
+        </a>
+        """,
+        unsafe_allow_html=True
+    )
 
 draws = load_draws()
 
 if draws:
     st.info(f"📅 Tarikh terakhir: **{draws[-1]['date']}** | 📊 Jumlah draw: **{len(draws)}**")
-
     st.subheader("📌 Insight Nombor Terakhir")
     st.markdown(get_last_result_insight(draws))
 
