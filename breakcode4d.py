@@ -49,7 +49,7 @@ def get_1st_prize(date_str):
     except requests.RequestException:
         return None
 
-def update_draws(file_path='data/draws.txt', max_days_back=121):
+def update_draws(file_path='data/draws.txt', max_days_back=30):
     draws = load_draws(file_path)
     last_date = datetime.today() - timedelta(max_days_back) if not draws else datetime.strptime(draws[-1]['date'], "%Y-%m-%d")
     yesterday = datetime.today() - timedelta(days=1)
@@ -281,12 +281,13 @@ else:
     last_30 = draws[-30:] if len(draws) >= 30 else draws
 
     try:
-        digit_counter = Counter("".join(d[0] if isinstance(d, (tuple, list)) else d[:4] for d in last_30))
+        digit_counter = Counter("".join(d[:4] for d in last_30))
         common_digits = digit_counter.most_common()
         like_suggest = [d for d, _ in common_digits[:3]]
         dislike_suggest = [d for d, _ in common_digits[-3:]]
-    except:
+    except Exception as e:
         like_suggest, dislike_suggest = [], []
+        st.warning(f"❌ Ralat semasa jana cadangan: {e}")
 
     st.markdown(f"**👍 Cadangan LIKE Digit:** `{', '.join(like_suggest)}`")
     st.markdown(f"**👎 Cadangan DISLIKE Digit:** `{', '.join(dislike_suggest)}`")
