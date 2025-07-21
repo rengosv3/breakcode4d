@@ -9,6 +9,7 @@ import random
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
+from collections import Counter
 
 # ===================== MUAT & SIMPAN BASE =====================
 def load_draws(file_path='data/draws.txt'):
@@ -78,28 +79,45 @@ def update_draws(file_path='data/draws.txt', max_days_back=61):
     return f"✔ {len(added)} draw baru ditambah." if added else "✔ Tiada draw baru ditambah."
 
 # ===================== ANALISIS & BASE (BARU) =====================
-def score_digits(draws, recent_n=10):
+def score_digits(draws, recent_n=20, min_gap=3):
     """
-    Cari 4 posisi digit (P1–P4) yang paling kuat dari draw terbaru.
-    Untuk setiap posisi, hanya ambil digit yang konsisten muncul & elak digit 'overheat'.
+    Cari 5 digit terbaik untuk setiap posisi (P1–P4) berdasarkan:
+    - Frekuensi tertinggi dalam recent_n draw
+    - Elakkan digit yang terlalu 'fresh' (baru muncul < min_gap draw lalu)
+    - Pastikan setiap posisi ada 5 digit
     """
-    recent = draws[-recent_n:] if len(draws) >= recent_n else draws
+    recent = draws[-recent_n:]
     counts = [Counter() for _ in range(4)]
+    last_seen = [{} for _ in range(4)]
 
-    for draw in recent:
+    for idx, draw in enumerate(recent):
         number = draw['number']
         for pos in range(4):
             digit = number[pos]
             counts[pos][digit] += 1
+            last_seen[pos][digit] = idx  # idx = jarak dari terkini
 
     base = []
-    for pos_counts in counts:
-        common = pos_counts.most_common()
-        max_freq = common[0][1] if common else 0
-        filtered = [d for d, f in common if f >= max(2, max_freq // 2)]
-        base.append(filtered[:5])
-    return base
+    for pos in range(4):
+        # Utamakan digit yg cukup gap
+        selected = []
+        for digit, freq in counts[pos].most_common():
+            gap = recent_n - last_seen[pos].get(digit, recent_n)
+            if gap >= min_gap:
+                selected.append(int(digit))
+            if len(selected) == 5:
+                break
 
+        # Jika tak cukup 5, tambah digit berikutnya walaupun gap kecil
+        if len(selected) < 5:
+            for digit, _ in counts[pos].most_common():
+                if int(digit) not in selected:
+                    selected.append(int(digit))
+                if len(selected) == 5:
+                    break
+
+        base.append(selected)
+    return base
 # ===================== RAMALAN =====================
 def generate_predictions(base_digits, n=10):
     combos = set()
