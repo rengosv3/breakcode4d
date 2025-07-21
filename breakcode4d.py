@@ -41,6 +41,8 @@ def display_base_as_text(file_path):
         return '\n'.join([f"Pick {i+1}: {line.strip()}" for i, line in enumerate(f) if line.strip()])
 
 # ===================== UPDATE DRAW =====================
+# ===================== UPDATE DRAW (BARU) =====================
+
 def get_1st_prize(date_str):
     url = f"https://gdlotto.net/results/ajax/_result.aspx?past=1&d={date_str}"
     try:
@@ -53,9 +55,16 @@ def get_1st_prize(date_str):
     except requests.RequestException:
         return None
 
+
 def update_draws(file_path='data/draws.txt', max_days_back=61):
     draws = load_draws(file_path)
-    last_date = (datetime.today() - timedelta(days=max_days_back)) if not draws else datetime.strptime(draws[-1]['date'], "%Y-%m-%d")
+    
+    # Cari tarikh terakhir yang dah ada
+    last_date = (
+        datetime.today() - timedelta(days=max_days_back)
+        if not draws else datetime.strptime(draws[-1][0], "%Y-%m-%d")
+    )
+
     yesterday = datetime.today() - timedelta(days=1)
     current = last_date + timedelta(days=1)
     added = []
@@ -67,14 +76,20 @@ def update_draws(file_path='data/draws.txt', max_days_back=61):
             prize = get_1st_prize(date_str)
             if prize:
                 f.write(f"{date_str} {prize}\n")
-                added.append({'date': date_str, 'number': prize})
+                added.append((date_str, prize))
             current += timedelta(days=1)
 
     if added:
+        # Reload selepas ditambah
         draws = load_draws(file_path)
-        latest_base = score_digits(draws)
+
+        # Guna penjanaan strategi base
+        latest_base = generate_base(draws, method='hybrid', recent_n=10)
+
+        # Simpan base
         save_base_to_file(latest_base, 'data/base.txt')
         save_base_to_file(latest_base, 'data/base_last.txt')
+
     return f"✔ {len(added)} draw baru ditambah." if added else "✔ Tiada draw baru ditambah."
 
 # ===================== ANALISIS & BASE =====================
