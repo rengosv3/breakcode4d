@@ -181,6 +181,53 @@ def show_digit_distribution(draws):
         ax.set_title(f"Digit di Pick {i+1}")
     st.pyplot(fig)
 
+# ===================== BACKTEST =====================
+def run_backtest(draws, base_path='data/base.txt', num_days=10):
+    if len(draws) < num_days:
+        st.warning("❗ Tidak cukup draw untuk backtest.")
+        return
+
+    results = []
+    st.markdown("### 🔁 Backtest 10 Hari Terakhir")
+
+    for i in range(num_days):
+        draw = draws[-(i+1)]
+        draw_date, first_prize = draw['date'], draw['number']
+
+        base = load_base_from_file(base_path)
+        if not base:
+            st.error(f"❗ Base tidak dijumpai atau kosong di: `{base_path}`")
+            return
+
+        predictions = generate_predictions(base, n=4)
+        insight = ["✅" if p == first_prize else "❌" for p in predictions]
+
+        results.append({
+            "Tarikh": draw_date,
+            "Result 1st": first_prize,
+            "P1": predictions[0],
+            "P2": predictions[1],
+            "P3": predictions[2],
+            "P4": predictions[3],
+            "Insight": f"P1:{insight[0]} P2:{insight[1]} P3:{insight[2]} P4:{insight[3]}"
+        })
+
+        st.markdown(f"""
+        ### 🎯 Tarikh: {draw_date}
+        **Result 1st**: `{first_prize}`  
+        **Base (sebelum {draw_date}):**
+        """)
+        for j, b in enumerate(base):
+            st.text(f"P{j+1}: {' '.join(str(d) for d in b)}")
+        st.markdown(f"**Insight:** `{results[-1]['Insight']}`")
+        st.markdown("---")
+
+    df = pd.DataFrame(results[::-1])
+    success_count = sum(1 for r in results if "✅" in r["Insight"])
+    st.success(f"🎉 Jumlah menang tepat: {success_count} daripada {num_days}")
+    st.markdown("### 📊 Ringkasan Backtest:")
+    st.dataframe(df, use_container_width=True)
+
 # ===================== STREAMLIT UI =====================
 st.set_page_config(page_title="Breakcode4D Predictor", layout="wide")
 st.title("🔮 Breakcode4D Predictor (GD Lotto)")
@@ -207,14 +254,11 @@ if not draws:
     st.warning("⚠️ Sila klik 'Update Draw Terkini' untuk mula.")
 else:
     st.info(f"📅 Tarikh terakhir: **{draws[-1]['date']}** | 📊 Jumlah draw: **{len(draws)}**")
-
-    tabs = st.tabs(["📌 Insight Terakhir", "🧠 Ramalan", "🔁 Cross & Super", "🧪 AI Tuner", "📊 Visualisasi", "📂 Draws List"])
+    tabs = st.tabs(["📌 Insight Terakhir", "🧠 Ramalan", "🔁 Cross & Super", "🧪 AI Tuner", "📊 Visualisasi", "📂 Draws List", "🔁 Backtest"])
 
     with tabs[0]:
         st.markdown("### 📌 Insight Terakhir")
         st.markdown(get_last_result_insight(draws))
-        if st.button("🚀 Jalankan Backtest"):
-           st.switch_page("backtest_app.py")
 
     with tabs[1]:
         st.markdown("### 🧠 Ramalan Berdasarkan Base")
@@ -269,3 +313,6 @@ else:
         df = pd.DataFrame(draws)[::-1]
         st.dataframe(df, use_container_width=True)
         st.download_button("💾 Muat Turun Semua Draws", df.to_csv(index=False), "draws_list.csv", "text/csv")
+
+    with tabs[6]:
+        run_backtest(draws)
