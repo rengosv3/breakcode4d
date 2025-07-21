@@ -10,6 +10,12 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 
+# ========== BACKTEST IMPORT ==========
+try:
+    from backtest_app import run_backtest
+except ImportError:
+    run_backtest = None
+
 # ===================== MUAT & SIMPAN BASE =====================
 def load_draws(file_path='data/draws.txt'):
     if not os.path.exists(file_path):
@@ -216,6 +222,14 @@ else:
     with tabs[0]:
         st.markdown("### 📌 Insight Terakhir")
         st.markdown(get_last_result_insight(draws))
+
+        st.markdown("---")
+        st.markdown("### ⏪ Backtest 10 Hari Terakhir")
+        if run_backtest:
+            if st.button("🔁 Jalankan Backtest"):
+                run_backtest(draws)
+        else:
+            st.warning("⚠️ Fungsi backtest tidak ditemui. Pastikan `backtest_app.py` ada fungsi `run_backtest(draws)`.")
 
     with tabs[1]:
         st.markdown("### 🧠 Ramalan Berdasarkan Base")
