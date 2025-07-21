@@ -248,7 +248,7 @@ else:
     with tabs[4]:
         st.markdown("### 🎡 Wheelpick Generator")
 
-    # Pilihan Mod Input
+    # ===================== Mod Input =====================
     mode = st.radio("Mod Input:", ["Auto (dari Base)", "Manual Input"])
     if mode == "Manual Input":
         manual_base = []
@@ -265,10 +265,10 @@ else:
             st.stop()
         manual_base = base
 
-    # Nilai Lot
+    # ===================== Nilai Lot =====================
     lot = st.text_input("Nilai Lot Setiap Nombor (cth: 0.10):", value="0.10")
 
-    # Filter Asal
+    # ===================== Filter Asal =====================
     no_repeat = st.checkbox("❌ Buang Nombor Berulang", value=True)
     no_pair = st.checkbox("❌ Buang Pasangan Sama", value=False)
     no_triple = st.checkbox("❌ Buang Tiga Digit Sama", value=False)
@@ -276,26 +276,27 @@ else:
     use_history = st.checkbox("📜 Guna Sejarah Draw", value=True)
     sim_limit = st.slider("🔁 Had Maksimum Persamaan Dengan Draw Sebelum Ini", 0, 4, 2)
 
-    # Auto LIKE / DISLIKE dari strategi
+    # ===================== LIKE/DISLIKE Suggestion =====================
     draws = load_draws()
-    auto_like, auto_dislike = get_auto_like_dislike(draws)
+    last_30 = draws[-30:] if len(draws) >= 30 else draws
+    digit_counter = Counter("".join(draw[0] for draw in last_30))
+    top_digits = [d for d, _ in digit_counter.most_common(3)]
+    bottom_digits = [d for d, _ in digit_counter.most_common()[-3:]]
 
-    st.markdown(f"**Auto LIKE digits:** {' '.join(auto_like)}   **Auto DISLIKE digits:** {' '.join(auto_dislike)}")
-    use_auto = st.checkbox("✅ Gunakan auto suggestions", value=True)
+    st.markdown(f"👍 Cadangan LIKE Digit: {', '.join(top_digits)}")
+    st.markdown(f"👎 Cadangan DISLIKE Digit: {', '.join(bottom_digits)}")
 
-    if use_auto:
-        like_digits = auto_like
-        dislike_digits = auto_dislike
-    else:
-        like_input = st.text_input("👍 Digit WAJIB ADA (cth: 1 3 5):", value=" ".join(auto_like))
-        dislike_input = st.text_input("👎 Digit WAJIB DIBUANG jika ≥3 (cth: 6 8 9):", value=" ".join(auto_dislike))
-        like_digits = like_input.strip().split() if like_input else []
-        dislike_digits = dislike_input.strip().split() if dislike_input else []
+    # ===================== Input LIKE/DISLIKE =====================
+    like_input = st.text_input("👍 Digit WAJIB ADA (cth: 1 3 5)", value="")
+    like_digits = like_input.strip().split() if like_input else []
+
+    dislike_input = st.text_input("👎 Digit WAJIB DIBUANG jika lebih 2 (cth: 6 8 9)", value="")
+    dislike_digits = dislike_input.strip().split() if dislike_input else []
 
     combos = []
 
+    # ===================== Create Wheelpick =====================
     if st.button("🎰 Create Wheelpick"):
-        # Langkah 1: Jana kombinasi 625
         for a in manual_base[0]:
             for b in manual_base[1]:
                 for c in manual_base[2]:
@@ -304,7 +305,7 @@ else:
 
         st.info(f"Jumlah asal kombinasi: {len(combos)}")
 
-        # Langkah 2: Apply filter asal
+        # Filter Asal
         combos = apply_filters(
             combos, draws,
             no_repeat=no_repeat,
@@ -315,31 +316,32 @@ else:
             sim_limit=sim_limit
         )
 
-        # Langkah 3: Apply LIKE / DISLIKE
+        # Filter LIKE/DISLIKE
         def filter_like_dislike(combo):
             num = combo[:4]
-            if like_digits and not any(d in num for d in like_digits):
+            like_count = sum(1 for d in like_digits if d in num)
+            dislike_count = sum(1 for d in dislike_digits if d in num)
+            if like_digits and like_count == 0:
                 return False
-            if dislike_digits and sum(1 for d in num if d in dislike_digits) >= 3:
+            if dislike_digits and dislike_count >= 3:
                 return False
             return True
 
         combos = [c for c in combos if filter_like_dislike(c)]
+        st.success(f"✅ {len(combos)} nombor akhir selepas ditapis.")
 
-        total = len(combos)
-        st.success(f"✅ {total} nombor akhir selepas ditapis.")
-
-        # Bahagikan kepada 21 bahagian
+        # Papar 21 bahagian
         part_size = 30
         for i in range(21):
             start = i * part_size
             end = start + part_size
             section = combos[start:end]
-            if not section: break
+            if not section:
+                break
             st.markdown(f"**📦 Bahagian {i+1}** ({len(section)} nombor)")
             st.code('\n'.join(section))
 
-        # Fungsi Muat Turun
+        # Muat turun
         wheel_text = '\n'.join(combos)
         filename = f"wheelpick_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
         st.download_button("💾 Muat Turun Semua Nombor", data=wheel_text, file_name=filename, mime='text/plain')
