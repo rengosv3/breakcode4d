@@ -223,11 +223,15 @@ else:
         st.markdown("### 📌 Insight Terakhir")
         st.markdown(get_last_result_insight(draws))
 
-        st.markdown("---")
-        st.markdown("### ⏪ Backtest 10 Hari Terakhir")
-        if run_backtest:
-            if st.button("🔁 Jalankan Backtest"):
-                run_backtest(draws)
+            st.markdown("---")
+    st.markdown("### ⏪ Backtest 10 Hari Terakhir")
+
+    if st.button("🔁 Jalankan Backtest"):
+        try:
+            from backtest_app import run_backtest
+            run_backtest(draws)
+        except Exception as e:
+            st.error(f"❌ Gagal jalankan backtest: {e}")
         else:
             st.warning("⚠️ Fungsi backtest tidak ditemui. Pastikan `backtest_app.py` ada fungsi `run_backtest(draws)`.")
 
