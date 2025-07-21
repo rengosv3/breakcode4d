@@ -231,7 +231,7 @@ else:
         if st.button("🚀 Jalankan Backtest"):
             run_backtest(draws, strategy=strat, recent_n=recent_n)
             
-     with tabs[4]:
+    with tabs[4]:
         st.markdown("### 🎡 Wheelpick Generator")
 
         # Input mod manual atau auto
