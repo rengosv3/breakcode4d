@@ -78,7 +78,8 @@ def generate_base(draws, method='frequency', recent_n=50):
     return {
         'frequency': generate_by_frequency,
         'gap': generate_by_gap,
-        'hybrid': generate_hybrid
+        'hybrid': generate_hybrid,
+        'qaisara': generate_qaisara
     }.get(method, generate_by_frequency)(draws, recent_n)
 
 def generate_by_frequency(draws, recent_n=50):
@@ -119,6 +120,21 @@ def generate_hybrid(draws, recent_n=10):
         picks.append(combo[:5] + [str(random.randint(0,9)) for _ in range(5 - len(combo))])
     return picks
 
+def generate_qaisara(draws, recent_n=10):
+    base_freq = generate_by_frequency(draws, recent_n)
+    base_gap = generate_by_gap(draws, recent_n)
+    base_hybrid = generate_hybrid(draws, recent_n)
+
+    combined = []
+    for i in range(4):
+        all_digits = base_freq[i] + base_gap[i] + base_hybrid[i]
+        counter = Counter(all_digits)
+        top_5 = [d for d, _ in counter.most_common(5)]
+        while len(top_5) < 5:
+            top_5.append(str(random.randint(0, 9)))
+        combined.append(top_5)
+    return combined
+    
 # ===================== BACKTEST =====================
 def run_backtest(draws, strategy='hybrid', recent_n=10):
     if len(draws) < recent_n + 10:
@@ -198,7 +214,7 @@ else:
 
     with tabs[1]:
         st.markdown("### 🧠 Ramalan Base")
-        strat = st.selectbox("Pilih strategi base untuk ramalan:", ['hybrid', 'frequency', 'gap'])
+        strat = st.selectbox("Pilih strategi base untuk ramalan:", ['hybrid', 'frequency', 'gap', 'qaisara'])
         recent_n = st.slider("Jumlah draw terkini digunakan untuk base:", 5, 100, 30, 5)
         base = generate_base(draws, method=strat, recent_n=recent_n)
         for i, p in enumerate(base): st.text(f"Pick {i+1}: {' '.join(p)}")
@@ -210,7 +226,7 @@ else:
 
     with tabs[2]:
         st.markdown("### 🔁 Backtest Base")
-        strat = st.selectbox("Pilih strategi base untuk backtest:", ['hybrid', 'frequency', 'gap'])
+        strat = st.selectbox("Pilih strategi base untuk backtest:", ['hybrid', 'frequency', 'gap', 'qaisara'])
         recent_n = st.slider("Jumlah draw terkini untuk backtest:", 5, 50, 10)
         if st.button("🚀 Jalankan Backtest"):
             run_backtest(draws, strategy=strat, recent_n=recent_n)
