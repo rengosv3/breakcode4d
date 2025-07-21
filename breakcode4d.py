@@ -51,7 +51,7 @@ def get_1st_prize(date_str):
     except:
         return None
 
-def update_draws(file_path='data/draws.txt', max_days_back=120):
+def update_draws(file_path='data/draws.txt', max_days_back=30):
     draws = load_draws(file_path)
     last_date = datetime.today() - timedelta(days=max_days_back) if not draws else datetime.strptime(draws[-1]['date'], "%Y-%m-%d")
     today = datetime.today()
@@ -198,53 +198,74 @@ def show_digit_distribution(draws):
 # ================================================================
 # 🎯 UI STREAMLIT
 # ================================================================
-st.set_page_config(page_title="Breakcode4D Visual", layout="centered")
+st.set_page_config(page_title="Breakcode4D Predictor", layout="centered")
 st.title("🔮 Breakcode4D Predictor")
 
-if st.button("📥 Update Draw Terkini"):
-    msg = update_draws()
-    st.success(msg)
-    st.markdown("### 📋 Base Hari Ini (Salin & Tampal)")
-    st.code(display_base_as_text('data/base.txt'), language='text')
+with st.sidebar:
+    if st.button("📥 Update Draw Terkini"):
+        msg = update_draws()
+        st.success(msg)
+        st.markdown("### 📋 Base Hari Ini")
+        st.code(display_base_as_text('data/base.txt'), language='text')
 
 draws = load_draws()
 
-if draws:
-    st.info(f"📅 Tarikh terakhir: **{draws[-1]['date']}** | 📊 Jumlah draw: **{len(draws)}**")
+if not draws:
+    st.warning("⚠️ Sila klik '📥 Update Draw Terkini' untuk mula.")
+    st.stop()
 
+st.markdown(f"#### 📅 Tarikh terakhir: **{draws[-1]['date']}**")
+st.markdown(f"#### 📊 Jumlah draw terkumpul: **{len(draws)}**")
+
+tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
+    "📌 Insight", 
+    "🔮 Ramalan", 
+    "🔁 Cross Pick", 
+    "🚀 Super Base", 
+    "🧪 AI Tuner", 
+    "📈 Visualisasi"
+])
+
+with tab1:
     st.subheader("📌 Insight Nombor Terakhir")
-    st.text(get_last_result_insight(draws))
+    st.markdown(get_last_result_insight(draws))
 
-    st.subheader("🧠 Ramalan Berdasarkan Super/Base")
+with tab2:
+    st.subheader("🔮 Ramalan Berdasarkan Base/Super Base")
     base_digits = load_base_from_file('data/base_super.txt') if os.path.exists('data/base_super.txt') else load_base_from_file('data/base.txt')
     preds = generate_predictions(base_digits)
 
     for i, pick in enumerate(base_digits):
-        st.write(f"Pick {i+1}: {' '.join(pick)}")
+        st.markdown(f"**Pick {i+1}**: {'  '.join(pick)}")
 
-    st.markdown("📊 10 Ramalan Terpilih:")
+    st.markdown("#### 🎯 10 Ramalan Terpilih:")
     col1, col2 = st.columns(2)
     for i in range(5):
-        col1.text(preds[i])
-        col2.text(preds[i+5])
+        col1.success(preds[i])
+        col2.success(preds[i+5])
 
-    if st.button("🔁 Cross Pick Analysis"):
-        st.text(cross_pick_analysis(draws))
+with tab3:
+    if st.button("🔁 Jalankan Cross Pick Analysis"):
+        st.markdown("### 🔍 Analisis Cross Pick")
+        st.code(cross_pick_analysis(draws), language='text')
 
-    if st.button("🚀 Jana Super Base (30,60,120)"):
+with tab4:
+    if st.button("🚀 Jana Super Base (30, 60, 120 draw)"):
         super_base = generate_super_base(draws)
         save_base_to_file(super_base, 'data/base_super.txt')
-        st.success("Super Base disimpan ke 'base_super.txt'")
-        st.markdown("### 📋 Super Base (Salin & Tampal)")
-        st.code(display_base_as_text('data/base_super.txt'), language='text')
+        st.success("✅ Super Base disimpan ke `base_super.txt`")
+    st.markdown("### 📋 Paparan Super Base")
+    st.code(display_base_as_text('data/base_super.txt'), language='text')
 
-    if st.button("🧪 Tuner AI (Auto Filter)"):
+with tab5:
+    if st.button("🧪 Jalankan AI Tuner (Auto Filter)"):
         tuned = ai_tuner(draws)
+        st.markdown("### 🔧 AI Tuned Picks")
         for i, pick in enumerate(tuned):
             st.write(f"Tuned Pick {i+1}: {' '.join(pick)}")
 
-    st.subheader("📈 Visualisasi Analisis")
+with tab6:
+    st.markdown("### 📊 Taburan Digit")
     show_digit_distribution(draws)
+    st.markdown("### 🔥 Heatmap Digit (100 Draw Terkini)")
     show_digit_heatmap(draws)
-else:
-    st.warning("⚠️ Sila klik '📥 Update Draw Terkini' untuk mula.")
