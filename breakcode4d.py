@@ -181,7 +181,7 @@ def show_digit_distribution(draws):
         ax.set_title(f"Digit di Pick {i+1}")
     st.pyplot(fig)
 
-# ===================== BACKTEST =====================
+# ===================== BACKTEST (Versi Betul) =====================
 def run_backtest(draws, num_days=10):
     if len(draws) < num_days:
         st.warning("❗ Tidak cukup draw untuk backtest.")
@@ -194,15 +194,17 @@ def run_backtest(draws, num_days=10):
         draw = draws[-(i+1)]
         draw_date, first_prize = draw['date'], draw['number']
 
-        # Ambil training draws sebelum hari ini
+        # Ambil semua draw sebelum draw ini
         training_draws = draws[:-(i+1)]
         if len(training_draws) < 30:
-            st.warning(f"❗ Tak cukup data untuk hari ke-{i+1}. Skip.")
+            st.warning(f"❗ Tak cukup training data untuk hari ke-{i+1}. Skip.")
             continue
 
-        # Bina base baru daripada training draws
+        # Ambil hanya nombor (tanpa tarikh)
         training_numbers = [d['number'] for d in training_draws]
-        base = score_digits(training_numbers, top_n=30)  # <-- ikut kaedah yang kau guna
+
+        # Bina base daripada 30 draw terakhir sebelum tarikh draw
+        base = score_digits(training_numbers, 30)
 
         predictions = generate_predictions(base, n=4)
         insight = ["✅" if p == first_prize else "❌" for p in predictions]
@@ -220,7 +222,7 @@ def run_backtest(draws, num_days=10):
         st.markdown(f"""
         ### 🎯 Tarikh: {draw_date}
         **Result 1st**: `{first_prize}`  
-        **Base (sebelum {draw_date}):**
+        **Base (dibina dari sebelum tarikh ini):**
         """)
         for j, b in enumerate(base):
             st.text(f"P{j+1}: {' '.join(str(d) for d in b)}")
