@@ -78,24 +78,71 @@ def update_draws(file_path='data/draws.txt', max_days_back=61):
     return f"✔ {len(added)} draw baru ditambah." if added else "✔ Tiada draw baru ditambah."
 
 # ===================== ANALISIS & BASE =====================
-def score_digits(draws, recent_n=30):
-    recent = draws[-recent_n:] if len(draws) >= recent_n else draws
-    weights = [Counter() for _ in range(4)]
-    for idx, draw in enumerate(reversed(recent)):
-        for pos, digit in enumerate(draw['number']):
-            weights[pos][digit] += idx + 1
-    return [[d for d, _ in w.most_common(5)] for w in weights]
+# ===================== PENJANAAN BASE STRATEGI MODULAR =====================
 
-def generate_super_base(draws):
-    b30 = score_digits(draws, 30)
-    b60 = score_digits(draws, 60)
-    b120 = score_digits(draws, 120)
-    superb = []
-    for i in range(4):
-        common = set(b30[i]) & set(b60[i]) & set(b120[i])
-        combined = list(common) + [d for d in b30[i] if d not in common]
-        superb.append(combined[:5])
-    return superb
+def generate_base(draws, method='frequency', recent_n=10):
+    if method == 'frequency':
+        return generate_by_frequency(draws, recent_n)
+    elif method == 'gap':
+        return generate_by_gap(draws, recent_n)
+    elif method == 'hybrid':
+        return generate_hybrid(draws, recent_n)
+    else:
+        return generate_by_frequency(draws, recent_n)  # default fallback
+
+
+def generate_by_frequency(draws, recent_n=10):
+    recent_draws = [d[1] for d in draws[-recent_n:]]
+    counter = [Counter() for _ in range(4)]
+    for number in recent_draws:
+        for i, digit in enumerate(number):
+            counter[i][digit] += 1
+
+    picks = []
+    for pos_counter in counter:
+        top_digits = [int(d) for d, _ in pos_counter.most_common(5)]
+        while len(top_digits) < 5:
+            top_digits.append(random.randint(0, 9))
+        picks.append(top_digits)
+    return picks
+
+
+def generate_by_gap(draws, recent_n=10):
+    recent_draws = [d[1] for d in draws[-recent_n:]]
+    last_seen = [defaultdict(lambda: -1) for _ in range(4)]
+    gap_scores = [defaultdict(int) for _ in range(4)]
+
+    for idx, number in enumerate(recent_draws[::-1]):
+        for pos, digit in enumerate(number):
+            digit = int(digit)
+            if last_seen[pos][digit] != -1:
+                gap = idx - last_seen[pos][digit]
+                gap_scores[pos][digit] += gap
+            last_seen[pos][digit] = idx
+
+    picks = []
+    for pos_gap in gap_scores:
+        sorted_digits = sorted(pos_gap.items(), key=lambda x: -x[1])
+        top_digits = [d for d, _ in sorted_digits[:5]]
+        while len(top_digits) < 5:
+            top_digits.append(random.randint(0, 9))
+        picks.append(top_digits)
+    return picks
+
+
+def generate_hybrid(draws, recent_n=10):
+    freq_picks = generate_by_frequency(draws, recent_n)
+    gap_picks = generate_by_gap(draws, recent_n)
+    picks = []
+
+    for f, g in zip(freq_picks, gap_picks):
+        combo = list(set(f + g))
+        random.shuffle(combo)
+        final = combo[:5]
+        while len(final) < 5:
+            final.append(random.randint(0, 9))
+        picks.append(final)
+    return picks
 
 # ===================== RAMALAN & AI =====================
 def generate_predictions(base_digits, n=10):
