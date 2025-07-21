@@ -45,7 +45,7 @@ def get_1st_prize(date_str):
     except:
         return None
 
-def update_draws(file_path='data/draws.txt', max_days_back=30):
+def update_draws(file_path='data/draws.txt', max_days_back=60):
     draws = load_draws(file_path)
     last_date = datetime.today() - timedelta(days=max_days_back) if not draws else datetime.strptime(draws[-1]['date'], "%Y-%m-%d")
     today = datetime.today()
@@ -110,13 +110,14 @@ def cross_pick_analysis(draws):
 def get_last_result_insight(draws):
     if not draws:
         return "Tiada data draw tersedia."
+
     today_str = datetime.today().strftime("%Y-%m-%d")
     last_valid = next((d for d in reversed(draws) if d['date'] < today_str), None)
     if not last_valid:
         return "Tiada data draw semalam tersedia."
 
     last_number, last_date = last_valid['number'], last_valid['date']
-    insight_lines = [f"📅 Nombor terakhir naik: **{last_number}** pada {last_date}\n"]
+    insight_lines = [f"📅 **Nombor terakhir naik:** `{last_number}` pada `{last_date}`\n"]
 
     all_numbers = [d['number'] for d in draws if len(d['number']) == 4]
     digit_counter = [Counter() for _ in range(4)]
@@ -139,7 +140,9 @@ def get_last_result_insight(draws):
     insight_lines.append("📋 **Base Digunakan:**")
     for i, pick in enumerate(base_digits):
         insight_lines.append(f"- Pick {i+1}: {' '.join(pick)}")
+    insight_lines.append("")  # Spacing
 
+    insight_lines.append("🔍 **Analisis Setiap Digit:**")
     for i, digit in enumerate(last_number):
         freq = digit_counter[i][digit]
         rank = sorted(digit_counter[i].values(), reverse=True).index(freq) + 1
@@ -147,11 +150,14 @@ def get_last_result_insight(draws):
         in_cross = "✅" if digit in cross_top[i] else "❌"
         score = (2 if rank <= 3 else 1 if rank <= 5 else 0) + (2 if in_base == "✅" else 0) + (1 if in_cross == "✅" else 0)
         label = "🔥 Sangat berpotensi" if score >= 4 else "👍 Berpotensi" if score >= 3 else "❓ Kurang pasti"
-        insight_lines.append(f"Pick {i+1}: Digit '{digit}' - Ranking #{rank}, Base: {in_base}, Cross: {in_cross} → **{label}**\n")
+        insight_lines.append(
+            f"- **Pick {i+1}**: Digit `{digit}` - Ranking #{rank}, Base: {in_base}, Cross: {in_cross} → **{label}**"
+        )
 
-    insight_lines.append("\n💡 AI Insight:")
+    insight_lines.append("\n💡 **AI Insight:**")
     insight_lines.append("- Digit dalam Base & Cross berkemungkinan besar naik semula.")
     insight_lines.append("- Ranking tinggi (Top 3) menunjukkan konsistensi kuat.")
+
     return '\n'.join(insight_lines)
 
 # ===================== AI TUNER =====================
