@@ -195,14 +195,37 @@ else:
     st.info(f"📅 Tarikh terakhir: **{draws[-1]['date']}** | 📊 Jumlah draw: **{len(draws)}**")
     tabs = st.tabs(["📋 Draw List", "📌 Insight", "🧠 Ramalan", "🔁 Backtest"])
 
-    with tabs[0]:
+    with tabs[4]:
         st.markdown("### 📋 Senarai Semua Draw")
         df = pd.DataFrame(draws)
         st.dataframe(df, use_container_width=True)
 
-    with tabs[1]:
-        st.markdown("### 📌 Insight Terakhir")
-        # Boleh tambah paparan insight terakhir di sini
+    with tabs[0]:
+    st.markdown("### 📌 Insight Terakhir")
+
+    if len(draws) < 1:
+        st.warning("⚠️ Tiada draw untuk dianalisis.")
+    else:
+        last_draw = draws[-1]
+        base = load_base_from_file()
+
+        if not base or len(base) != 4:
+            st.warning("⚠️ Base belum dijana atau tidak lengkap.")
+        else:
+            st.markdown(f"**Tarikh Draw:** `{last_draw['date']}`")
+            st.markdown(f"**Nombor 1st Prize:** `{last_draw['number']}`")
+
+            cols = st.columns(4)
+            for i in range(4):
+                digit = last_draw['number'][i]
+                if digit in base[i]:
+                    cols[i].success(f"Pos {i+1}: ✅ `{digit}` ada dalam {base[i]}")
+                else:
+                    cols[i].error(f"Pos {i+1}: ❌ `{digit}` tiada dalam {base[i]}")
+
+            st.markdown("### 📋 Base Digunakan:")
+            for i, b in enumerate(base):
+                st.text(f"Pos {i+1}: {' '.join(b)}")
 
     with tabs[2]:
         st.markdown("### 🧠 Ramalan Base")
