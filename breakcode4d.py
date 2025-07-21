@@ -182,7 +182,7 @@ def show_digit_distribution(draws):
     st.pyplot(fig)
 
 # ===================== BACKTEST =====================
-def run_backtest(draws, base_path='data/base.txt', num_days=10):
+def run_backtest(draws, num_days=10):
     if len(draws) < num_days:
         st.warning("❗ Tidak cukup draw untuk backtest.")
         return
@@ -194,10 +194,15 @@ def run_backtest(draws, base_path='data/base.txt', num_days=10):
         draw = draws[-(i+1)]
         draw_date, first_prize = draw['date'], draw['number']
 
-        base = load_base_from_file(base_path)
-        if not base:
-            st.error(f"❗ Base tidak dijumpai atau kosong di: `{base_path}`")
-            return
+        # Ambil training draws sebelum hari ini
+        training_draws = draws[:-(i+1)]
+        if len(training_draws) < 30:
+            st.warning(f"❗ Tak cukup data untuk hari ke-{i+1}. Skip.")
+            continue
+
+        # Bina base baru daripada training draws
+        training_numbers = [d['number'] for d in training_draws]
+        base = score_digits(training_numbers, top_n=30)  # <-- ikut kaedah yang kau guna
 
         predictions = generate_predictions(base, n=4)
         insight = ["✅" if p == first_prize else "❌" for p in predictions]
@@ -224,7 +229,7 @@ def run_backtest(draws, base_path='data/base.txt', num_days=10):
 
     df = pd.DataFrame(results[::-1])
     success_count = sum(1 for r in results if "✅" in r["Insight"])
-    st.success(f"🎉 Jumlah menang tepat: {success_count} daripada {num_days}")
+    st.success(f"🎉 Jumlah menang tepat: {success_count} daripada {len(results)}")
     st.markdown("### 📊 Ringkasan Backtest:")
     st.dataframe(df, use_container_width=True)
 
