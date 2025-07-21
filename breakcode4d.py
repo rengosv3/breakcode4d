@@ -53,7 +53,7 @@ def get_1st_prize(date_str):
     except requests.RequestException:
         return None
 
-def update_draws(file_path='data/draws.txt', max_days_back=61):
+def update_draws(file_path='data/draws.txt', max_days_back=60):
     draws = load_draws(file_path)
     last_date = (datetime.today() - timedelta(days=max_days_back)) if not draws else datetime.strptime(draws[-1]['date'], "%Y-%m-%d")
     yesterday = datetime.today() - timedelta(days=1)
@@ -211,14 +211,7 @@ if not draws:
 else:
     st.info(f"📅 Tarikh terakhir: **{draws[-1]['date']}** | 📊 Jumlah draw: **{len(draws)}**")
 
-    tabs = st.tabs([
-        "📌 Insight Terakhir",
-        "🧠 Ramalan",
-        "🔁 Cross & Super",
-        "🧪 AI Tuner",
-        "📊 Visualisasi",
-        "📂 Draws List"
-    ])
+    tabs = st.tabs(["📌 Insight Terakhir", "🧠 Ramalan", "🔁 Cross & Super", "🧪 AI Tuner", "📊 Visualisasi", "📂 Draws List"])
 
     with tabs[0]:
         st.markdown("### 📌 Insight Terakhir")
@@ -240,15 +233,10 @@ else:
             st.markdown("#### 📋 Base Digunakan:")
             for i, p in enumerate(base):
                 st.text(f"Pick {i+1}: {' '.join(p)}")
-
             preds = generate_predictions(base)
-            st.markdown("#### 🔮 Nombor Diramal:")
-            col1, col2 = st.columns(2)
-            half = len(preds) // 2
-            for i in range(half):
-                col1.code(preds[i], language='text')
-            for i in range(half, len(preds)):
-                col2.code(preds[i], language='text')
+            lines = [' '.join(preds[i:i+5]) for i in range(0, len(preds), 5)]
+            st.markdown("#### 🔮 Nombor Diramalkan (5 per baris):")
+            st.code('\n'.join(lines), language='text')
 
     with tabs[2]:
         st.markdown("### 🔁 Cross Pick & 🚀 Super Base")
@@ -261,7 +249,6 @@ else:
                 sb = generate_super_base(draws)
                 save_base_to_file(sb, 'data/base_super.txt')
                 st.success("Super Base disimpan ke 'data/base_super.txt'")
-
         if os.path.exists('data/base_super.txt'):
             st.markdown("#### 📋 Super Base:")
             st.code(display_base_as_text('data/base_super.txt'), language='text')
@@ -270,8 +257,13 @@ else:
         st.markdown("### 🧪 AI Tuner")
         if st.button("🔧 Jana AI Tuned Base"):
             tuned = ai_tuner(draws)
+            st.markdown("#### 📋 AI Tuned Base:")
             for i, p in enumerate(tuned):
                 st.text(f"Tuned Pick {i+1}: {' '.join(p)}")
+            st.markdown("#### 🔮 Ramalan Berdasarkan AI Tuned:")
+            preds = generate_predictions(tuned)
+            lines = [' '.join(preds[i:i+5]) for i in range(0, len(preds), 5)]
+            st.code('\n'.join(lines), language='text')
 
     with tabs[4]:
         st.markdown("### 📊 Visualisasi Data Digit")
