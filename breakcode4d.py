@@ -53,7 +53,7 @@ def get_1st_prize(date_str):
     except requests.RequestException:
         return None
 
-def update_draws(file_path='data/draws.txt', max_days_back=60):
+def update_draws(file_path='data/draws.txt', max_days_back=61):
     draws = load_draws(file_path)
     last_date = (datetime.today() - timedelta(days=max_days_back)) if not draws else datetime.strptime(draws[-1]['date'], "%Y-%m-%d")
     yesterday = datetime.today() - timedelta(days=1)
@@ -235,7 +235,7 @@ else:
                 st.text(f"Pick {i+1}: {' '.join(p)}")
             preds = generate_predictions(base)
             lines = [' '.join(preds[i:i+5]) for i in range(0, len(preds), 5)]
-            st.markdown("#### 🔮 Nombor Diramalkan (5 per baris):")
+            st.markdown("#### 🔮 Nombor Diramalkan")
             st.code('\n'.join(lines), language='text')
 
     with tabs[2]:
