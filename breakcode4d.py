@@ -77,7 +77,7 @@ def update_draws(file_path='data/draws.txt', max_days_back=61):
         save_base_to_file(latest_base, 'data/base_last.txt')
     return f"✔ {len(added)} draw baru ditambah." if added else "✔ Tiada draw baru ditambah."
 
-# ===================== ANALISIS BASE & SUPER =====================
+# ===================== ANALISIS & BASE =====================
 def score_digits(draws, recent_n=30):
     recent = draws[-recent_n:] if len(draws) >= recent_n else draws
     weights = [Counter() for _ in range(4)]
@@ -97,12 +97,15 @@ def generate_super_base(draws):
         superb.append(combined[:5])
     return superb
 
-# ===================== RAMALAN =====================
+# ===================== RAMALAN & AI =====================
 def generate_predictions(base_digits, n=10):
     combos = set()
     while len(combos) < n:
         combos.add(''.join(random.choice(base_digits[i]) for i in range(4)))
     return sorted(combos)
+
+def ai_tuner(draws):
+    return [[d for d in pick if int(d)%2==0 or d in '579'] for pick in score_digits(draws,30)]
 
 def cross_pick_analysis(draws):
     cnt = [defaultdict(int) for _ in range(4)]
@@ -119,12 +122,10 @@ def cross_pick_analysis(draws):
 def get_last_result_insight(draws):
     if not draws:
         return "Tiada data draw tersedia."
-
     today = datetime.today().strftime("%Y-%m-%d")
     last_valid = next((d for d in reversed(draws) if d['date'] < today), None)
     if not last_valid:
         return "Tiada data draw semalam tersedia."
-
     ln, ld = last_valid['number'], last_valid['date']
     lines = [f"📅 **Nombor terakhir naik:** `{ln}` pada `{ld}`\n"]
 
@@ -165,10 +166,6 @@ def get_last_result_insight(draws):
     lines.append("- Ranking tinggi (Top 3) menunjukkan konsistensi kuat.")
     return '\n'.join(lines)
 
-# ===================== AI TUNER =====================
-def ai_tuner(draws):
-    return [[d for d in pick if int(d)%2==0 or d in '579'] for pick in score_digits(draws,30)]
-
 # ===================== VISUALISASI =====================
 def show_digit_heatmap(draws):
     df = pd.DataFrame([list(d['number']) for d in draws[-100:]], columns=[f"P{i+1}" for i in range(4)])
@@ -185,15 +182,15 @@ def show_digit_distribution(draws):
     st.pyplot(fig)
 
 # ===================== STREAMLIT UI =====================
-st.set_page_config(page_title="Breakcode4D Visual", layout="centered")
+st.set_page_config(page_title="Breakcode4D Predictor", layout="wide")
 st.title("🔮 Breakcode4D Predictor (GD Lotto)")
 
-col1, col2 = st.columns(2)
+col1, col2 = st.columns([1, 1])
 with col1:
     if st.button("📥 Update Draw Terkini"):
         msg = update_draws()
         st.success(msg)
-        st.markdown("### 📋 Base Hari Ini (Salin & Tampal)")
+        st.markdown("### 📋 Base Hari Ini")
         st.code(display_base_as_text('data/base.txt'), language='text')
 
 with col2:
@@ -207,7 +204,7 @@ with col2:
 
 draws = load_draws()
 if not draws:
-    st.warning("⚠️ Sila klik '📥 Update Draw Terkini' untuk mula.")
+    st.warning("⚠️ Sila klik 'Update Draw Terkini' untuk mula.")
 else:
     st.info(f"📅 Tarikh terakhir: **{draws[-1]['date']}** | 📊 Jumlah draw: **{len(draws)}**")
 
@@ -216,15 +213,8 @@ else:
     with tabs[0]:
         st.markdown("### 📌 Insight Terakhir")
         st.markdown(get_last_result_insight(draws))
-
-        # ✅ Butang Backtest
-        st.markdown("""
-            <a href="backtest_app.py" target="_blank">
-                <button style="width:100%; padding:0.6em; font-size:16px; background:#f39c12; color:white; border:none; border-radius:5px;">
-                    🚀 Jalankan Backtest
-                </button>
-            </a>
-        """, unsafe_allow_html=True)
+        if st.button("🚀 Jalankan Backtest"):
+            st.switch_page("pages/backtest_app.py")
 
     with tabs[1]:
         st.markdown("### 🧠 Ramalan Berdasarkan Base")
@@ -236,43 +226,36 @@ else:
             base = load_base_from_file('data/base.txt')
             st.info("Menggunakan Base Biasa")
         else:
-            st.warning("❗ Tiada fail base ditemui. Sila update draw dahulu.")
-
+            st.warning("❗ Tiada fail base ditemui.")
         if base:
-            st.markdown("#### 📋 Base Digunakan:")
             for i, p in enumerate(base):
                 st.text(f"Pick {i+1}: {' '.join(p)}")
             preds = generate_predictions(base)
-            lines = [' '.join(preds[i:i+5]) for i in range(0, len(preds), 5)]
-            st.markdown("#### 🔮 Nombor Diramalkan")
-            st.code('\n'.join(lines), language='text')
+            st.code('\n'.join([' '.join(preds[i:i+5]) for i in range(0, len(preds), 5)]), language='text')
 
     with tabs[2]:
-        st.markdown("### 🔁 Cross Pick & 🚀 Super Base")
+        st.markdown("### 🔁 Cross Pick & Super Base")
         col1, col2 = st.columns(2)
         with col1:
-            if st.button("📊 Lihat Analisis Cross"):
+            if st.button("📊 Lihat Cross Pick"):
                 st.text(cross_pick_analysis(draws))
         with col2:
-            if st.button("🚀 Jana & Simpan Super Base"):
+            if st.button("🚀 Jana Super Base"):
                 sb = generate_super_base(draws)
                 save_base_to_file(sb, 'data/base_super.txt')
-                st.success("Super Base disimpan ke 'data/base_super.txt'")
+                st.success("Super Base disimpan.")
         if os.path.exists('data/base_super.txt'):
-            st.markdown("#### 📋 Super Base:")
             st.code(display_base_as_text('data/base_super.txt'), language='text')
 
     with tabs[3]:
         st.markdown("### 🧪 AI Tuner")
         if st.button("🔧 Jana AI Tuned Base"):
             tuned = ai_tuner(draws)
-            st.markdown("#### 📋 AI Tuned Base:")
             for i, p in enumerate(tuned):
                 st.text(f"Tuned Pick {i+1}: {' '.join(p)}")
-            st.markdown("#### 🔮 Ramalan Berdasarkan AI Tuned:")
             preds = generate_predictions(tuned)
-            lines = [' '.join(preds[i:i+5]) for i in range(0, len(preds), 5)]
-            st.code('\n'.join(lines), language='text')
+            st.markdown("#### 🔮 Ramalan Berdasarkan AI Tuned:")
+            st.code('\n'.join([' '.join(preds[i:i+5]) for i in range(0, len(preds), 5)]), language='text')
 
     with tabs[4]:
         st.markdown("### 📊 Visualisasi Data Digit")
