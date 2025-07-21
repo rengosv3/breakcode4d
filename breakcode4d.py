@@ -21,6 +21,35 @@ def load_draws(file_path='data/draws.txt'):
                 draws.append({'date': parts[0], 'number': parts[1]})
     return draws
 
+# ==== Fungsi Simpan & Papar Base ====
+def save_base_to_file(base_digits, file_path='data/base_last.txt'):
+    os.makedirs(os.path.dirname(file_path), exist_ok=True)
+    with open(file_path, 'w') as f:
+        for pick in base_digits:
+            f.write(' '.join(pick) + '\n')
+
+def load_base_from_file(file_path='data/base_last.txt'):
+    if not os.path.exists(file_path):
+        return []
+    base = []
+    with open(file_path, 'r') as f:
+        for line in f:
+            digits = line.strip().split()
+            if digits:
+                base.append(digits)
+    return base
+
+def display_base_as_text(file_path='data/base_last.txt'):
+    if not os.path.exists(file_path):
+        return "⚠️ Tiada fail base_last.txt dijumpai."
+    lines = []
+    with open(file_path, 'r') as f:
+        for i, line in enumerate(f):
+            digits = line.strip()
+            if digits:
+                lines.append(f"Pick {i+1}: {digits}")
+    return '\n'.join(lines)
+
 # ==== Fungsi Update Draw ====
 def get_1st_prize(date_str):
     url = f"https://gdlotto.net/results/ajax/_result.aspx?past=1&d={date_str}"
@@ -80,22 +109,29 @@ def get_last_result_insight(draws):
         for i, digit in enumerate(number):
             digit_counter[i][digit] += 1
 
-    # Base & Cross Pick
-    base_digits = score_digits(draws)
+    # Base dari fail
+    base_digits = load_base_from_file()
+
+    # Cross Pick
     cross_data = [defaultdict(int) for _ in range(4)]
     for number in all_numbers:
         for i, digit in enumerate(number):
             cross_data[i][digit] += 1
     cross_top = [[d for d, _ in sorted(c.items(), key=lambda x: -x[1])[:5]] for c in cross_data]
 
-    # Semak dan beri skor AI untuk setiap digit
+    # Papar base
+    insight_lines.append("Base : (Contoh)")
+    for i, pick in enumerate(base_digits):
+        insight_lines.append(f"Pick {i+1}: {' '.join(pick)}")
+    insight_lines.append("")
+
+    # AI Insight per digit
     for i, digit in enumerate(last_number):
         freq = digit_counter[i][digit]
         rank = sorted(digit_counter[i].values(), reverse=True).index(freq) + 1
         in_base = "✅" if digit in base_digits[i] else "❌"
         in_cross = "✅" if digit in cross_top[i] else "❌"
 
-        # Kira skor kebarangkalian
         score = 0
         if rank <= 3:
             score += 2
@@ -116,19 +152,7 @@ def get_last_result_insight(draws):
     insight_lines.append("- Ranking tinggi (Top 3) menunjukkan konsistensi kuat.")
     return '\n'.join(insight_lines)
 
-# ==== Fungsi Pilih Digit Terbaik ====
-def generate_base_digits(draws, top_n=5, recent_n=20):
-    picks = [Counter() for _ in range(4)]
-    for draw in draws[-recent_n:]:
-        number = draw['number']
-        for i, digit in enumerate(number):
-            picks[i][digit] += 1
-    base = []
-    for counter in picks:
-        base.append([digit for digit, _ in counter.most_common(top_n)])
-    return base
-
-# ==== Sistem Skor Tambahan ====
+# ==== Sistem Skor Base ====
 def score_digits(draws, recent_n=20):
     weights = [Counter() for _ in range(4)]
     for i, draw in enumerate(draws[-recent_n:]):
@@ -181,7 +205,15 @@ st.title("🔮 Breakcode4D Predictor")
 
 # Butang update draw
 if st.button("📥 Update Draw Terkini"):
-    st.success(update_draws())
+    msg = update_draws()
+    st.success(msg)
+
+    # Auto simpan base
+    base_digits = score_digits(load_draws())
+    save_base_to_file(base_digits)
+
+    st.markdown("### 📋 Base Terkini (Salin & Tampal)")
+    st.code(display_base_as_text(), language='text')
 
 # Muatkan draw
 draws = load_draws()
@@ -192,14 +224,8 @@ if draws:
     st.info(f"📅 Tarikh terakhir: **{last_date}** | 📊 Jumlah draw: **{total_draws}**")
 
     st.subheader("🧠 Analisis & Ramalan")
-
-    # Butang jana semula
-    if st.button("🧠 Jana Ramalan Baharu"):
-        base = score_digits(draws)
-        preds = generate_predictions(base)
-    else:
-        base = score_digits(draws)
-        preds = generate_predictions(base)
+    base = score_digits(draws)
+    preds = generate_predictions(base)
 
     for i, pick in enumerate(base):
         st.write(f"Pick {i+1}: {' '.join(pick)}")
@@ -226,6 +252,5 @@ if draws:
 
     if st.button("💡 Cadangan Sistem Terbaik Breakcode4D"):
         st.info(best_system_suggestion(draws))
-
 else:
     st.warning("⚠️ Sila klik '📥 Update Draw Terkini' untuk mula.")
