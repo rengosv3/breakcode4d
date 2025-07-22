@@ -61,7 +61,7 @@ def get_1st_prize(date_str):
         print(f"❌ Ralat semasa request untuk {date_str}: {e}")
         return None
 
-def update_draws(file_path='data/draws.txt', max_days_back=31):
+def update_draws(file_path='data/draws.txt', max_days_back=121):
     # ✅ Muat semua draw sedia ada dalam bentuk set tarikh
     draws = load_draws(file_path)
     existing_dates = set([d['date'] for d in draws])
@@ -268,7 +268,7 @@ else:
         
         # ================= LIKE / DISLIKE SUGGESTION =================
         like_digits, dislike_digits = get_like_dislike_digits(draws)
-        st.markdown("### 💡 Cadangan LIKE / DISLIKE Digit Berdasarkan 30 Cabutan Terakhir")
+        st.markdown("### 💡LIKE / DISLIKE Digit")
         col1, col2 = st.columns(2)
         with col1:
             st.success(f"👍 LIKE Digit: {' '.join(like_digits)}")
