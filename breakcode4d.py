@@ -10,6 +10,15 @@ from collections import Counter, defaultdict
 from zoneinfo import ZoneInfo
 from bs4 import BeautifulSoup
 
+# ===================== EXPIRED DATE CHECK =====================
+expired = st.secrets.get("expired_until", "2025-07-25 23:59")
+expired_date = datetime.strptime(expired, "%Y-%m-%d %H:%M")
+
+if datetime.now() > expired_date:
+    st.title("🔒 Akses Disekat")
+    st.error("Access disekat. Sila hubungi admin [@rengosv3](https://t.me/rengosv3) di Telegram untuk maklumat lanjut.")
+    st.stop()
+
 # ===================== COUNTDOWN DRAW =====================
 def get_draw_countdown_from_last_8pm():
     now = datetime.now(ZoneInfo("Asia/Kuala_Lumpur"))
@@ -163,7 +172,7 @@ def run_backtest(draws, strategy='hybrid', recent_n=10, arah='Kiri ke Kanan (P1�
         st.warning("❗ Tidak cukup draw untuk backtest.")
         return
     def match_insight(fp, base):
-        if arah == "Kanan ke Kiri (P4→P1)":
+        if arah == "Kanan ke Kanan (P4→P1)":  # note: corrected label?
             fp = fp[::-1]
             base = base[::-1]
         return ["✅" if fp[i] in base[i] else "❌" for i in range(4)]
