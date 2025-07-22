@@ -3,6 +3,7 @@ import streamlit as st
 import os
 import re
 import requests
+import itertools
 import pandas as pd
 from datetime import datetime, timedelta
 from collections import Counter, defaultdict
@@ -62,7 +63,7 @@ def get_1st_prize(date_str):
         return None
 
 def update_draws(file_path='data/draws.txt', max_days_back=121):
-    st.cache_data.clear()  # 🚨 Kosongkan cache bila data draw dikemaskini
+    st.cache_data.clear()
     draws = load_draws(file_path)
     existing_dates = set(d['date'] for d in draws)
     last_date = (datetime.today() - timedelta(max_days_back)
@@ -116,8 +117,7 @@ def generate_by_frequency(recent, recent_n):
     for d in recent:
         for i, dig in enumerate(d['number']):
             counters[i][dig] += 1
-    picks = [[dig for dig, _ in c.most_common(5)] for c in counters]
-    return picks
+    return [[dig for dig, _ in c.most_common(5)] for c in counters]
 
 def generate_by_gap(recent, recent_n):
     last_seen = [defaultdict(lambda: None) for _ in range(4)]
@@ -127,8 +127,7 @@ def generate_by_gap(recent, recent_n):
             if last_seen[pos][dig] is not None:
                 gaps[pos][dig] += idx - last_seen[pos][dig]
             last_seen[pos][dig] = idx
-    picks = [[dig for dig, _ in sorted(g.items(), key=lambda x: -x[1])[:5]] for g in gaps]
-    return picks
+    return [[dig for dig, _ in sorted(g.items(), key=lambda x: -x[1])[:5]] for g in gaps]
 
 def generate_hybrid(recent, recent_n):
     freq = generate_by_frequency(recent, recent_n)
@@ -136,8 +135,7 @@ def generate_hybrid(recent, recent_n):
     picks = []
     for f, g in zip(freq, gap):
         cnt = Counter(f + g)
-        hybrid_top = [dig for dig, _ in cnt.most_common(5)]
-        picks.append(hybrid_top)
+        picks.append([dig for dig, _ in cnt.most_common(5)])
     return picks
 
 def generate_qaisara(recent, recent_n):
@@ -147,8 +145,7 @@ def generate_qaisara(recent, recent_n):
     picks = []
     for i in range(4):
         cnt = Counter(freq[i] + gap[i] + hybrid[i])
-        top5 = [dig for dig, _ in cnt.most_common(5)]
-        picks.append(top5)
+        picks.append([dig for dig, _ in cnt.most_common(5)])
     return picks
 
 # ===================== BACKTEST FUNCTION =====================
@@ -192,6 +189,12 @@ def get_like_dislike_digits(draws, recent_n=30):
     like = [d for d, _ in mc[:3]]
     dislike = [d for d, _ in mc[-3:]] if len(mc) >= 3 else []
     return like, dislike
+
+# ===================== PREDICTION DETERMINISTIK =====================
+@st.cache_data
+def generate_predictions_from_base(base, max_preds=10):
+    combos = [''.join(p) for p in itertools.product(*base)]
+    return combos[:max_preds]
 
 # ===================== UI =====================
 st.set_page_config(page_title="Breakcode4D Predictor", layout="wide")
@@ -243,17 +246,15 @@ else:
 
     # === Ramalan Tab ===
     with tabs[1]:
-        st.markdown("### 🧠 Ramalan Base")
+        st.markdown("### 🧠 Ramalan Base (Deterministik)")
         strat = st.selectbox("Pilih strategi base untuk ramalan:", ['hybrid', 'frequency', 'gap', 'qaisara'])
         recent_n = st.slider("Jumlah draw terkini digunakan untuk base:", 5, 100, 30, 5)
         base = generate_base(draws, method=strat, recent_n=recent_n)
         for i, p in enumerate(base):
             st.text(f"Pick {i+1}: {' '.join(p)}")
-        preds = []
-        while len(preds) < 10:
-            pred = ''.join(random.choice(base[i]) for i in range(4))
-            if pred not in preds:
-                preds.append(pred)
+
+        preds = generate_predictions_from_base(base, max_preds=10)
+        st.markdown("**🔢 Ramalan Kombinasi 4D (Top 10):**")
         st.code('\n'.join(preds), language='text')
 
     # === Backtest Tab ===
@@ -298,12 +299,14 @@ else:
         mode = st.radio("Mod Input Base:", ["Auto (dari Base)", "Manual Input"], key="wheelpick_mode")
         if mode == "Manual Input":
             manual_base = []
+            # Mesti 4 baris input, setiap satu 5 digit
             for i in range(4):
                 val = st.text_input(f"Digit Pilihan untuk Pick {i+1} (cth: 1 3 5 7 9):", key=f"wp_manual_{i}")
                 digs = val.strip().split()
                 if len(digs) != 5 or not all(d.isdigit() and len(d)==1 for d in digs):
-                    st.warning("⚠️ Masukkan 5 digit 0-9 dipisah ruang.")
-                manual_base.append(digs if len(digs)==5 else [str(random.randint(0,9)) for _ in range(5)])
+                    st.error("❌ Manual input mesti 5 digit 0-9 dipisah ruang. Proses dihentikan.")
+                    st.stop()
+                manual_base.append(digs)
         else:
             base = load_base_from_file()
             if not base or len(base) != 4:
@@ -323,7 +326,7 @@ else:
 
         def apply_filters(combos, draws, no_repeat, no_triple, no_pair, no_ascend, use_history, sim_limit, like_digits, dislike_digits):
             past = set(d['number'] for d in draws)
-            last = draws[-1]['number'] if draws else "0000"
+            last_num = draws[-1]['number'] if draws else "0000"
             filtered = []
             for entry in combos:
                 num = entry[:4]
@@ -338,7 +341,7 @@ else:
                     continue
                 if use_history and num in past:
                     continue
-                sim = sum(1 for a,b in zip(num, last) if a==b)
+                sim = sum(1 for a,b in zip(num, last_num) if a==b)
                 if sim > sim_limit:
                     continue
                 if like_digits and not any(d in like_digits for d in num):
