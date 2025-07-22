@@ -18,14 +18,13 @@ if datetime.now() > global_expired_date:
     st.error("Access disekat. Sila hubungi admin [@rengosv3](https://t.me/rengosv3) di Telegram untuk maklumat lanjut.")
     st.stop()
 
-# ===================== SESSION-STATE LOGIN INIT =====================
+# ===================== SESSION STATE INIT =====================
 if "login_success" not in st.session_state:
     st.session_state.login_success = False
 
-# ===================== MULTI-USER LOGIN WITH PER-USER EXPIRY =====================
+# ===================== LOGIN FORM =====================
 if not st.session_state.login_success:
     st.title("🔐 Sila Login Dahulu")
-
     st.info(
         "Jika anda belum mempunyai akses:\n\n"
         "📩 Sila hubungi admin [@rengosv3](https://t.me/rengosv3) di Telegram untuk maklumat lanjut.\n\n"
@@ -41,7 +40,6 @@ if not st.session_state.login_success:
         auth_users = st.secrets.get("auth_users", {})
         user_expiry = st.secrets.get("user_expiry", {})
 
-        # validasi credentials
         if username in auth_users and password == auth_users[username]:
             # per-user expiry check
             expiry_str = user_expiry.get(username, "2099-12-31 23:59")
@@ -50,15 +48,17 @@ if not st.session_state.login_success:
                 st.title("🔒 Akses Tamat")
                 st.error(f"Akses untuk '{username}' telah tamat. Sila hubungi admin [@rengosv3](https://t.me/rengosv3).")
                 st.stop()
-            # mark login success & rerun
+
+            # login success
             st.session_state.login_success = True
             st.session_state.logged_user = username
             st.experimental_rerun()
         else:
             st.error("ID atau Kata Laluan salah.")
+
     st.stop()
 
-# ========== USER IS LOGGED IN BELOW ==========
+# ========== USER IS LOGGED IN ==========
 st.sidebar.success(f"✔️ Logged in as: {st.session_state.logged_user}")
 
 # ===================== COUNTDOWN DRAW =====================
@@ -266,6 +266,7 @@ if not draws:
 else:
     st.info(f"📅 Tarikh terakhir: **{draws[-1]['date']}** | 📊 Jumlah draw: **{len(draws)}**")
     tabs = st.tabs(["📌 Insight", "🧠 Ramalan", "🔁 Backtest", "📋 Draw List", "🎡 Wheelpick"])
+
     # Insight Tab
     with tabs[0]:
         last = draws[-1]
@@ -281,6 +282,7 @@ else:
             st.markdown("### Base Digunakan:")
             for i, b in enumerate(base):
                 st.text(f"P{i+1} → {' '.join(b)}")
+
     # Ramalan Tab
     with tabs[1]:
         strat = st.selectbox("Strategi:", ['hybrid','frequency','gap','qaisara'])
@@ -293,6 +295,7 @@ else:
             p = ''.join(random.choice(base[i]) for i in range(4))
             if p not in preds: preds.append(p)
         st.code('\n'.join(preds))
+
     # Backtest Tab
     with tabs[2]:
         arah = st.radio("Arah bacaan:", ["Kiri ke Kanan (P1→P4)","Kanan ke Kiri (P4→P1)"])
@@ -301,9 +304,11 @@ else:
         br = st.slider("Bil. backtest:",5,50,10)
         if st.button("🚀 Jalankan Backtest"):
             run_backtest(draws, strat, bn, arah, br)
+
     # Draw List Tab
     with tabs[3]:
         st.dataframe(pd.DataFrame(draws), use_container_width=True)
+
     # Wheelpick Tab
     with tabs[4]:
         st.markdown("### 🎡 Wheelpick Generator")
