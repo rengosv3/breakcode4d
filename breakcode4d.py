@@ -22,7 +22,7 @@ user_expiry = st.secrets.get("user_expiry", {})
 
 # ========== SEMAK LOGIN ==========
 if username not in auth_users or password != auth_users[username]:
-    st.warning("Sila masukkan ID dan Kata Laluan yang sah.")
+    st.warning("Sila masukkan ID dan Kata Laluan yang sah. Untuk free gunakan user: breakcode4d pass: 1234")
     st.stop()
 
 # ========== SEMAK TARIKH AKSES USER ==========
