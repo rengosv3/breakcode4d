@@ -50,13 +50,11 @@ def get_1st_prize(date_str):
             print(f"❌ Status bukan 200 untuk {date_str}: {resp.status_code}")
             return None
         soup = BeautifulSoup(resp.text, "html.parser")
-        text = soup.get_text().strip()
-        # Cuba cari pattern berdasarkan label "1st Prize"
-        match = re.search(r"1st Prize\(\w\)\s*(\d{4})", text)
-        if match:
-            return match.group(1)
+        prize_tag = soup.find("span", id="1stPz")
+        if prize_tag and prize_tag.text.strip().isdigit() and len(prize_tag.text.strip()) == 4:
+            return prize_tag.text.strip()
         else:
-            print(f"❌ Tidak jumpa 1st Prize dalam teks untuk {date_str}")
+            print(f"❌ Tidak jumpa 1st Prize untuk {date_str}")
             return None
     except requests.RequestException as e:
         print(f"❌ Ralat semasa request untuk {date_str}: {e}")
