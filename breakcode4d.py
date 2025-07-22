@@ -83,21 +83,21 @@ def update_draws(file_path='data/draws.txt', max_days_back=121):
             current += timedelta(days=1)
 
     if added:
-    draws = load_draws(file_path)
+        draws = load_draws(file_path)
 
-    # ✅ SALIN base.txt → base_last.txt JIKA base.txt tidak kosong
-    if os.path.exists('data/base.txt'):
-        with open('data/base.txt', 'r') as f:
-            content = f.read().strip()
-        if content:
-            import shutil
-            shutil.copyfile('data/base.txt', 'data/base_last.txt')
+        # ✅ SALIN base.txt → base_last.txt jika tidak kosong
+        if os.path.exists('data/base.txt'):
+            with open('data/base.txt', 'r') as f:
+                content = f.read().strip()
+            if content:
+                import shutil
+                shutil.copyfile('data/base.txt', 'data/base_last.txt')
 
-    # ✅ Jana base terkini → base.txt
-    latest_base = generate_base(draws, method='frequency', recent_n=50)
-    save_base_to_file(latest_base, 'data/base.txt')
+        # ✅ Jana base terkini ke base.txt
+        latest_base = generate_base(draws, method='frequency', recent_n=50)
+        save_base_to_file(latest_base, 'data/base.txt')
 
-return f"✔ {len(added)} draw baru ditambah." if added else "✔ Tiada draw baru ditambah."
+    return f"✔ {len(added)} draw baru ditambah." if added else "✔ Tiada draw baru ditambah."
 
 # ===================== STRATEGY BASE =====================
 def generate_base(draws, method='frequency', recent_n=50):
