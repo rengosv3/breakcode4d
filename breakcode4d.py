@@ -10,29 +10,56 @@ from collections import Counter, defaultdict
 from zoneinfo import ZoneInfo
 from bs4 import BeautifulSoup
 
-# ===================== EXPIRED DATE CHECK =====================
-
-# ========== INPUT LOGIN ==========
-username = st.text_input("🧑 ID Pengguna")
-password = st.text_input("🔑 Kata Laluan", type="password")
-
-# ========== AMBIL USER & EXPIRED ==========
-auth_users = st.secrets.get("auth_users", {})
-user_expiry = st.secrets.get("user_expiry", {})
-
-# ========== SEMAK LOGIN ==========
-if username not in auth_users or password != auth_users[username]:
-    st.warning("Sila masukkan ID dan Kata Laluan yang sah. Untuk free gunakan user: breakcode4d pass: 1234")
+# ===================== EXPIRED GLOBAL CHECK =====================
+# (Optional global expiry before login)
+global_expired = st.secrets.get("expired_until", "2099-12-31 23:59")
+global_expired_date = datetime.strptime(global_expired, "%Y-%m-%d %H:%M")
+if datetime.now() > global_expired_date:
+    st.title("🔒 Akses Disekat")
+    st.error("Access disekat. Sila hubungi admin [@rengosv3](https://t.me/rengosv3) di Telegram untuk maklumat lanjut.")
     st.stop()
 
-# ========== SEMAK TARIKH AKSES USER ==========
-expired_str = user_expiry.get(username, "2099-12-31 23:59")  # default jika tiada
-expired_date = datetime.strptime(expired_str, "%Y-%m-%d %H:%M")
+# ===================== MULTI-USER LOGIN WITH PER-USER EXPIRY =====================
+# Initialize session state
+if "login_success" not in st.session_state:
+    st.session_state.login_success = False
 
-if datetime.now() > expired_date:
-    st.title("🔒 Akses Tamat")
-    st.error(f"Akses untuk '{username}' telah tamat. Sila hubungi admin [@rengosv3](https://t.me/rengosv3).")
+# Only show login form if not yet logged in
+if not st.session_state.login_success:
+    st.title("🔐 Sila Login Dahulu")
+
+    st.info(
+        "Jika tiada akses, anda boleh guna akaun percuma:\n\n"
+        "🆓 **ID:** `breakcode4d`\n"
+        "🔑 **Password:** `1234`"
+    )
+
+    username = st.text_input("🧑 ID Pengguna")
+    password = st.text_input("🔑 Kata Laluan", type="password")
+
+    if st.button("Login"):
+        auth_users = st.secrets.get("auth_users", {})
+        user_expiry = st.secrets.get("user_expiry", {})
+
+        if username in auth_users and password == auth_users[username]:
+            # check per-user expiry
+            expiry_str = user_expiry.get(username, "2099-12-31 23:59")
+            expiry_date = datetime.strptime(expiry_str, "%Y-%m-%d %H:%M")
+            if datetime.now() > expiry_date:
+                st.title("🔒 Akses Tamat")
+                st.error(f"Akses untuk '{username}' telah tamat. Sila hubungi admin [@rengosv3](https://t.me/rengosv3).")
+                st.stop()
+            # login OK
+            st.session_state.login_success = True
+            st.session_state.logged_user = username
+            st.experimental_rerun()
+        else:
+            st.error("ID atau Kata Laluan salah.")
+
     st.stop()
+
+# ======== USER IS LOGGED IN BELOW THIS LINE ========
+st.sidebar.success(f"✔️ Logged in as: {st.session_state.logged_user}")
 
 # ===================== COUNTDOWN DRAW =====================
 def get_draw_countdown_from_last_8pm():
@@ -71,49 +98,43 @@ def get_1st_prize(date_str):
     try:
         resp = requests.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=10)
         if resp.status_code != 200:
-            print(f"❌ Status bukan 200 untuk {date_str}: {resp.status_code}")
             return None
         soup = BeautifulSoup(resp.text, "html.parser")
         prize_tag = soup.find("span", id="1stPz")
         if prize_tag and prize_tag.text.strip().isdigit() and len(prize_tag.text.strip()) == 4:
             return prize_tag.text.strip()
-        else:
-            print(f"❌ Tidak jumpa 1st Prize untuk {date_str}")
-            return None
-    except requests.RequestException as e:
-        print(f"❌ Ralat semasa request untuk {date_str}: {e}")
+    except:
         return None
+    return None
 
 def update_draws(file_path='data/draws.txt', max_days_back=121):
     draws = load_draws(file_path)
-    existing_dates = set(d['date'] for d in draws)
+    existing = {d['date'] for d in draws}
     last_date = (datetime.today() - timedelta(max_days_back)
                  if not draws else datetime.strptime(draws[-1]['date'], "%Y-%m-%d"))
     yesterday = datetime.today() - timedelta(days=1)
     current = last_date + timedelta(days=1)
     added = []
-
     os.makedirs(os.path.dirname(file_path), exist_ok=True)
     with open(file_path, 'a') as f:
         while current.date() <= yesterday.date():
-            date_str = current.strftime("%Y-%m-%d")
-            if date_str in existing_dates:
+            ds = current.strftime("%Y-%m-%d")
+            if ds in existing:
                 current += timedelta(days=1)
                 continue
-            prize = get_1st_prize(date_str)
+            prize = get_1st_prize(ds)
             if prize:
-                f.write(f"{date_str} {prize}\n")
-                added.append({'date': date_str, 'number': prize})
+                f.write(f"{ds} {prize}\n")
+                added.append({'date': ds, 'number': prize})
             current += timedelta(days=1)
-
     if added:
         draws = load_draws(file_path)
         latest_base = generate_base(draws, method='frequency', recent_n=50)
         save_base_to_file(latest_base, 'data/base.txt')
         save_base_to_file(latest_base, 'data/base_last.txt')
-    return f"✔ {len(added)} draw baru ditambah." if added else "✔ Tiada draw baru ditambah."
+    return f"✔️ {len(added)} draw baru ditambah." if added else "✔️ Tiada draw baru."
 
-# ===================== STRATEGY BASE =====================
+# ===================== STRATEGIES =====================
 def generate_base(draws, method='frequency', recent_n=50):
     return {
         'frequency': generate_by_frequency,
@@ -147,49 +168,44 @@ def generate_by_gap(draws, recent_n=50):
             last_seen[pos][dig] = idx
     picks = []
     for gs in gap_scores:
-        sorted_digits = sorted(gs.items(), key=lambda x: -x[1], reverse=True)
-        top = [d for d, _ in sorted_digits[:5]]
+        top = [d for d, _ in sorted(gs.items(), key=lambda x: -x[1])[:5]]
         while len(top) < 5:
             top.append(str(random.randint(0,9)))
         picks.append(top)
     return picks
 
 def generate_hybrid(draws, recent_n=10):
-    freq = generate_by_frequency(draws, recent_n)
-    gap = generate_by_gap(draws, recent_n)
+    f = generate_by_frequency(draws, recent_n)
+    g = generate_by_gap(draws, recent_n)
     picks = []
-    for f, g in zip(freq, gap):
-        combo = list(set(f + g))
+    for a, b in zip(f, g):
+        combo = list(set(a + b))
         random.shuffle(combo)
-        top = combo[:5]
-        while len(top) < 5:
-            top.append(str(random.randint(0,9)))
-        picks.append(top)
+        picks.append(combo[:5] + [str(random.randint(0,9))]*(5-len(combo)))
     return picks
 
 def generate_qaisara(draws, recent_n=10):
-    bf = generate_by_frequency(draws, recent_n)
-    bg = generate_by_gap(draws, recent_n)
-    bh = generate_hybrid(draws, recent_n)
+    f = generate_by_frequency(draws, recent_n)
+    g = generate_by_gap(draws, recent_n)
+    h = generate_hybrid(draws, recent_n)
     combined = []
     for i in range(4):
-        all_d = bf[i] + bg[i] + bh[i]
-        cnt = Counter(all_d)
+        cnt = Counter(f[i] + g[i] + h[i])
         top = [d for d, _ in cnt.most_common(5)]
         while len(top) < 5:
             top.append(str(random.randint(0,9)))
         combined.append(top)
     return combined
 
-# ===================== BACKTEST FUNCTION =====================
-def run_backtest(draws, strategy='hybrid', recent_n=10, arah='Kiri ke Kanan (P1→P4)', backtest_rounds=10):
+# ===================== BACKTEST =====================
+def run_backtest(draws, strategy='hybrid', recent_n=10,
+                 arah='Kiri ke Kanan (P1→P4)', backtest_rounds=10):
     if len(draws) < recent_n + backtest_rounds:
         st.warning("❗ Tidak cukup draw untuk backtest.")
         return
-    def match_insight(fp, base):
-        if arah == "Kanan ke Kanan (P4→P1)":  # note: corrected label?
-            fp = fp[::-1]
-            base = base[::-1]
+    def match(fp, base):
+        if arah.startswith("Kanan"):
+            fp, base = fp[::-1], base[::-1]
         return ["✅" if fp[i] in base[i] else "❌" for i in range(4)]
 
     results = []
@@ -198,12 +214,12 @@ def run_backtest(draws, strategy='hybrid', recent_n=10, arah='Kiri ke Kanan (P1�
         past = draws[:-(i+1)]
         if len(past) < recent_n:
             continue
-        base = generate_base(past, method=strategy, recent_n=recent_n)
-        insight = match_insight(test['number'], base)
+        base = generate_base(past, strategy, recent_n)
+        ins = match(test['number'], base)
         results.append({
             "Tarikh": test['date'],
             "Result 1st": test['number'],
-            "Insight": ' '.join(f"P{j+1}:{s}" for j, s in enumerate(insight))
+            "Insight": ' '.join(f"P{j+1}:{s}" for j, s in enumerate(ins))
         })
 
     df = pd.DataFrame(results[::-1])
@@ -211,15 +227,13 @@ def run_backtest(draws, strategy='hybrid', recent_n=10, arah='Kiri ke Kanan (P1�
     st.success(f"🎯 Jumlah digit match: {matched} daripada {backtest_rounds}")
     st.dataframe(df, use_container_width=True)
 
-# ===================== LIKE / DISLIKE ANALYSIS =====================
+# ===================== LIKE/DISLIKE =====================
 def get_like_dislike_digits(draws, recent_n=30):
-    last = [d['number'] for d in draws[-recent_n:] if 'number' in d and len(d['number']) == 4]
-    cnt = Counter()
-    for num in last:
-        cnt.update(num)
+    recent = [d['number'] for d in draws[-recent_n:]]
+    cnt = Counter(''.join(recent))
     mc = cnt.most_common()
     like = [d for d, _ in mc[:3]]
-    dislike = [d for d, _ in mc[-3:]] if len(mc) >= 3 else []
+    dislike = [d for d, _ in mc[-3:]]
     return like, dislike
 
 # ===================== UI =====================
@@ -235,175 +249,114 @@ with col1:
         st.markdown("### 📋 Base Hari Ini")
         st.code('\n'.join([' '.join(p) for p in load_base_from_file()]), language='text')
 with col2:
-    st.markdown("""
-    <a href="https://batman11.net/RegisterByReferral.aspx?MemberCode=BB1845" target="_blank">
+    st.markdown("""<a href="https://batman11.net/RegisterByReferral.aspx?MemberCode=BB1845" target="_blank">
         <button style="width:100%;padding:0.6em;font-size:16px;background:#4CAF50;color:white;border:none;border-radius:5px;">
             📝 Register Sini Batman 11 dan dapatkan BONUS!!!
-        </button>
-    </a>
-    """, unsafe_allow_html=True)
+        </button></a>""", unsafe_allow_html=True)
 
 draws = load_draws()
 if not draws:
-    st.warning("⚠️ Sila klik 'Update Draw Terkini' untuk mula. Proses ini hanya mengambil masa 1-5 minit sahaja.")
+    st.warning("⚠️ Sila klik 'Update Draw Terkini' untuk mula.")
 else:
     st.info(f"📅 Tarikh terakhir: **{draws[-1]['date']}** | 📊 Jumlah draw: **{len(draws)}**")
     tabs = st.tabs(["📌 Insight", "🧠 Ramalan", "🔁 Backtest", "📋 Draw List", "🎡 Wheelpick"])
-
-    # === Insight Tab ===
+    # Insight
     with tabs[0]:
-        st.markdown("### 📌 Insight Terakhir")
         last = draws[-1]
         base = load_base_from_file()
-        if not base or len(base) != 4:
-            st.warning("⚠️ Base belum dijana atau tidak lengkap.")
+        if not base or len(base)!=4:
+            st.warning("⚠️ Base belum dijana.")
         else:
-            st.markdown(f"**Tarikh Draw:** `{last['date']}`")
-            st.markdown(f"**Nombor 1st Prize:** `{last['number']}`")
+            st.markdown(f"**Tarikh Draw:** `{last['date']}`  **1st Prize:** `{last['number']}`")
             cols = st.columns(4)
             for i in range(4):
                 dig = last['number'][i]
-                (cols[i].success if dig in base[i] else cols[i].error)(
-                    f"Pos {i+1}: {'✅' if dig in base[i] else '❌'} `{dig}`"
-                )
-            st.markdown("### 📋 Base Digunakan:")
-            for i, b in enumerate(base):
-                st.text(f"Pos {i+1}: {' '.join(b)}")
-
-    # === Ramalan Tab ===
+                (cols[i].success if dig in base[i] else cols[i].error)(f"P{i+1}:{dig}")
+            st.markdown("### Base Digunakan:")
+            for i,b in enumerate(base):
+                st.text(f"P{i+1} → {' '.join(b)}")
+    # Ramalan
     with tabs[1]:
-        st.markdown("### 🧠 Ramalan Base")
-        strat = st.selectbox("Pilih strategi base untuk ramalan:", ['hybrid', 'frequency', 'gap', 'qaisara'])
-        recent_n = st.slider("Jumlah draw terkini digunakan untuk base:", 5, 100, 30, 5)
-        base = generate_base(draws, method=strat, recent_n=recent_n)
-        for i, p in enumerate(base):
-            st.text(f"Pick {i+1}: {' '.join(p)}")
+        strat = st.selectbox("Strategi:", ['hybrid','frequency','gap','qaisara'])
+        rn = st.slider("Draw untuk base:", 5,100,30,5)
+        base = generate_base(draws, strat, rn)
+        st.text("\n".join(f"P{i+1}: {' '.join(p)}" for i,p in enumerate(base)))
         preds = []
-        while len(preds) < 10:
-            pred = ''.join(random.choice(base[i]) for i in range(4))
-            if pred not in preds:
-                preds.append(pred)
-        st.code('\n'.join(preds), language='text')
-
-    # === Backtest Tab ===
+        while len(preds)<10:
+            p = ''.join(random.choice(base[i]) for i in range(4))
+            if p not in preds: preds.append(p)
+        st.code('\n'.join(preds))
+    # Backtest
     with tabs[2]:
-        st.markdown("### 🔁 Backtest Base")
-        arah_pilihan = st.radio(
-            "🔁 Pilih arah bacaan digit:",
-            ["Kiri ke Kanan (P1→P4)", "Kanan ke Kiri (P4→P1)"],
-            index=0,
-            key="backtest_arah"
-        )
-        strat = st.selectbox("Pilih strategi base untuk backtest:", ['hybrid', 'frequency', 'gap', 'qaisara'])
-        base_n = st.slider("Jumlah draw terkini digunakan untuk jana base:", 5, 100, 30, 5)
-        backtest_n = st.slider("Jumlah draw yang diuji (berapa kali backtest):", 5, 50, 10)
+        arah = st.radio("Arah bacaan:", ["Kiri ke Kanan (P1→P4)","Kanan ke Kiri (P4→P1)"])
+        strat = st.selectbox("Strategi Backtest:", ['hybrid','frequency','gap','qaisara'])
+        bn = st.slider("Base draw:",5,100,30,5)
+        br = st.slider("Bil. backtest:",5,50,10)
         if st.button("🚀 Jalankan Backtest"):
-            run_backtest(draws, strategy=strat, recent_n=base_n, arah=arah_pilihan, backtest_rounds=backtest_n)
-
-    # === Draw List Tab ===
+            run_backtest(draws, strat, bn, arah, br)
+    # Draw List
     with tabs[3]:
         st.dataframe(pd.DataFrame(draws), use_container_width=True)
-
-    # === Wheelpick Tab ===
+    # Wheelpick
     with tabs[4]:
         st.markdown("### 🎡 Wheelpick Generator")
-
-        # Pilih arah bacaan digit untuk Wheelpick
-        arah_pilihan_wp = st.radio(
-            "🔁 Pilih arah bacaan digit:",
-            ["Kiri ke Kanan (P1→P4)", "Kanan ke Kiri (P4→P1)"],
-            index=0,
-            key="wheelpick_arah"
-        )
-
-        # Cadangan LIKE / DISLIKE
-        like_sugg, dislike_sugg = get_like_dislike_digits(draws)
-        st.markdown(f"👍 **Cadangan LIKE (Top 3):** `{like_sugg}`")
-        st.markdown(f"👎 **Cadangan DISLIKE (Bottom 3):** `{dislike_sugg}`")
-
-        # Input manual LIKE / DISLIKE
-        user_like = st.text_input("🟢 Masukkan digit LIKE (pisahkan ruang):", value=' '.join(like_sugg))
-        user_dislike = st.text_input("🔴 Masukkan digit DISLIKE (pisahkan ruang):", value=' '.join(dislike_sugg))
-        like_digits = [d for d in user_like.strip().split() if d.isdigit() and len(d)==1]
-        dislike_digits = [d for d in user_dislike.strip().split() if d.isdigit() and len(d)==1]
-
-        mode = st.radio("Mod Input Base:", ["Auto (dari Base)", "Manual Input"], key="wheelpick_mode")
-        if mode == "Manual Input":
-            manual_base = []
+        arah_wp = st.radio("Arah:", ["Kiri ke Kanan (P1→P4)","Kanan ke Kiri (P4→P1)"])
+        like_s, dislike_s = get_like_dislike_digits(draws)
+        st.markdown(f"👍 Cadangan LIKE: `{like_s}`  👎 Cadangan DISLIKE: `{dislike_s}`")
+        user_like = st.text_input("LIKE (spasi):", ' '.join(like_s))
+        user_dislike = st.text_input("DISLIKE (spasi):", ' '.join(dislike_s))
+        lik = [d for d in user_like.split() if d.isdigit()]
+        dis = [d for d in user_dislike.split() if d.isdigit()]
+        mode = st.radio("Mod Base:", ["Auto","Manual"], key="wp_mode")
+        if mode=="Manual":
+            manual = []
             for i in range(4):
-                val = st.text_input(f"Digit Pilihan untuk Pick {i+1} (cth: 1 3 5 7 9):", key=f"wp_manual_{i}")
-                digs = val.strip().split()
-                if len(digs) != 5 or not all(d.isdigit() and len(d)==1 for d in digs):
-                    st.warning("⚠️ Masukkan 5 digit 0-9 dipisah ruang.")
-                manual_base.append(digs if len(digs)==5 else [str(random.randint(0,9)) for _ in range(5)])
+                v = st.text_input(f"P{i+1} digits (5):",key=f"m{i}")
+                ds = v.split()
+                manual.append(ds if len(ds)==5 else [str(random.randint(0,9)) for _ in range(5)])
         else:
-            base = load_base_from_file()
-            if not base or len(base) != 4:
-                st.warning("⚠️ Base tidak sah. Sila klik 'Update Draw' dahulu.")
+            manual = load_base_from_file()
+            if not manual or len(manual)!=4:
+                st.warning("⚠️ Base tidak sah.")
                 st.stop()
-            manual_base = base
+        lot = st.text_input("Lot:", "0.10", key="lot")
+        no_repeat = st.checkbox("❌ No-repeat")
+        no_triple = st.checkbox("❌ No-triple")
+        no_pair = st.checkbox("❌ No-pair")
+        no_ascend = st.checkbox("❌ No-ascend")
+        use_hist = st.checkbox("❌ No history")
+        sim_lim = st.slider("Max same pos:", 0,4,2)
+        def apply_filters(combos):
+            past = {d['number'] for d in draws}
+            lastn = draws[-1]['number'] if draws else "0000"
+            out=[]
+            for e in combos:
+                num=e[:4]
+                digs=list(num)
+                if no_repeat and len(set(digs))<4: continue
+                if no_triple and any(digs.count(d)>=3 for d in digs): continue
+                if no_pair and any(digs.count(d)==2 for d in set(digs)): continue
+                if no_ascend and num in ["0123","1234","2345","3456","4567","5678","6789"]: continue
+                if use_hist and num in past: continue
+                if sum(a==b for a,b in zip(num,lastn))>sim_lim: continue
+                if lik and not any(d in lik for d in num): continue
+                if dis and any(d in dis for d in num): continue
+                out.append(e)
+            return out
 
-        lot = st.text_input("Nilai Lot Setiap Nombor (cth: 0.10):", value="0.10", key="wheelpick_lot")
-
-        with st.expander("⚙️ Tapisan Tambahan"):
-            no_repeat = st.checkbox("❌ Buang nombor dengan digit berulang (contoh: 1123)")
-            no_triple = st.checkbox("❌ Buang nombor triple (contoh: 1112)")
-            no_pair = st.checkbox("❌ Buang nombor pair (contoh: 1123)")
-            no_ascend = st.checkbox("❌ Buang nombor menaik (contoh: 1234)")
-            use_history = st.checkbox("❌ Buang nombor yang pernah naik")
-            sim_limit = st.slider("❌ Had maksimum persamaan digit dengan draw terakhir", 0, 4, 2)
-
-        def apply_filters(combos, draws, no_repeat, no_triple, no_pair, no_ascend, use_history, sim_limit, like_digits, dislike_digits):
-            past = set(d['number'] for d in draws)
-            last = draws[-1]['number'] if draws else "0000"
-            filtered = []
-            for entry in combos:
-                num = entry[:4]
-                digits = list(num)
-                if no_repeat and len(set(digits)) < 4:
-                    continue
-                if no_triple and any(digits.count(d)>=3 for d in digits):
-                    continue
-                if no_pair and any(digits.count(d)==2 for d in set(digits)):
-                    continue
-                if no_ascend and num in ["0123","1234","2345","3456","4567","5678","6789"]:
-                    continue
-                if use_history and num in past:
-                    continue
-                sim = sum(1 for a,b in zip(num, last) if a==b)
-                if sim > sim_limit:
-                    continue
-                if like_digits and not any(d in like_digits for d in num):
-                    continue
-                if dislike_digits and any(d in dislike_digits for d in num):
-                    continue
-                filtered.append(entry)
-            return filtered
-
-        combos = []
+        combos=[]
         if st.button("🎰 Create Wheelpick"):
-            for a in manual_base[0]:
-                for b in manual_base[1]:
-                    for c in manual_base[2]:
-                        for d in manual_base[3]:
+            for a in manual[0]:
+                for b in manual[1]:
+                    for c in manual[2]:
+                        for d in manual[3]:
                             combos.append(f"{a}{b}{c}{d}##### {lot}")
-            st.info(f"💡 Sebelum tapis: {len(combos)} nombor")
-
-            combos = apply_filters(
-                combos, draws,
-                no_repeat, no_triple, no_pair, no_ascend, use_history, sim_limit,
-                like_digits, dislike_digits
-            )
-
-            st.success(f"✅ {len(combos)} nombor selepas ditapis.")
-            part_size = 30
-            for i in range((len(combos) + part_size - 1)//part_size):
-                section = combos[i*part_size:(i+1)*part_size]
-                if not section:
-                    break
-                st.markdown(f"**📦 Bahagian {i+1}** ({len(section)} nombor)")
-                st.code('\n'.join(section))
-
-            filename = f"wheelpick_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
-            data = '\n'.join(combos).encode('utf-8')
-            st.download_button("💾 Muat Turun Semua Nombor", data=data, file_name=filename, mime='text/plain')
+            st.info(f"💡 Before filters: {len(combos)}")
+            combos = apply_filters(combos)
+            st.success(f"✅ After filters: {len(combos)}")
+            for i in range(0, len(combos), 30):
+                st.code('\n'.join(combos[i:i+30]))
+            data = '\n'.join(combos).encode()
+            st.download_button("💾 Download", data=data,
+                               file_name=f"wheelpick_{datetime.now():%Y%m%d_%H%M%S}.txt",
+                               mime="text/plain")
