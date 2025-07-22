@@ -62,7 +62,10 @@ def get_1st_prize(date_str):
         return None
 
 def update_draws(file_path='data/draws.txt', max_days_back=121):
+    # ✅ Muat semua draw sedia ada dalam bentuk set tarikh
     draws = load_draws(file_path)
+    existing_dates = set([d['date'] for d in draws])
+
     last_date = datetime.today() - timedelta(max_days_back) if not draws else datetime.strptime(draws[-1]['date'], "%Y-%m-%d")
     yesterday = datetime.today() - timedelta(days=1)
     current = last_date + timedelta(days=1)
@@ -72,6 +75,12 @@ def update_draws(file_path='data/draws.txt', max_days_back=121):
     with open(file_path, 'a') as f:
         while current.date() <= yesterday.date():
             date_str = current.strftime("%Y-%m-%d")
+
+            # ✅ Langkau kalau tarikh ini sudah dalam fail
+            if date_str in existing_dates:
+                current += timedelta(days=1)
+                continue
+
             prize = get_1st_prize(date_str)
             if prize:
                 f.write(f"{date_str} {prize}\n")
