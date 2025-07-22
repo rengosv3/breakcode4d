@@ -50,11 +50,13 @@ def get_1st_prize(date_str):
             print(f"❌ Status bukan 200 untuk {date_str}: {resp.status_code}")
             return None
         soup = BeautifulSoup(resp.text, "html.parser")
-        prize_tag = soup.find("span", id="1stPz")
-        if prize_tag and prize_tag.text.strip().isdigit() and len(prize_tag.text.strip()) == 4:
-            return prize_tag.text.strip()
+        text = soup.get_text().strip()
+        # Cuba cari pattern berdasarkan label "1st Prize"
+        match = re.search(r"1st Prize\(\w\)\s*(\d{4})", text)
+        if match:
+            return match.group(1)
         else:
-            print(f"❌ Tidak jumpa 1st Prize untuk {date_str}")
+            print(f"❌ Tidak jumpa 1st Prize dalam teks untuk {date_str}")
             return None
     except requests.RequestException as e:
         print(f"❌ Ralat semasa request untuk {date_str}: {e}")
@@ -84,7 +86,7 @@ def update_draws(file_path='data/draws.txt', max_days_back=121):
 
     if added:
         draws = load_draws(file_path)
-        latest_base = generate_base(draws, method='frequency', recent_n=50)
+        latest_base = generate_base(draws, method='frequency', recent_n=121)
         save_base_to_file(latest_base, 'data/base.txt')
         save_base_to_file(latest_base, 'data/base_last.txt')
     return f"✔ {len(added)} draw baru ditambah." if added else "✔ Tiada draw baru ditambah."
@@ -345,7 +347,7 @@ else:
                 for b in manual_base[1]:
                     for c in manual_base[2]:
                         for d in manual_base[3]:
-                            combos.append(f"{a}{b}{c}{d}##### {lot}")
+                            combos.append(f"{a}{b}{c}{d}#####{lot}")
             st.info(f"💡 Sebelum tapis: {len(combos)} nombor")
             combos = apply_filters(combos, draws,
                                    no_repeat, no_triple, no_pair,
