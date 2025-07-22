@@ -162,20 +162,14 @@ def run_backtest(draws, strategy='hybrid', recent_n=10):
         st.warning("❗ Tidak cukup draw untuk backtest.")
         return
 
-    arah_pilihan = st.radio("🔁 Pilih arah bacaan digit:", ["Kiri ke Kanan (P1→P4)", "Kanan ke Kiri (P4→P1)"], index=0)
-
     def match_insight(fp, base):
-        if arah_pilihan == "Kanan ke Kiri (P4→P1)":
-            fp = fp[::-1]
-            base = base[::-1]
         return ["✅" if fp[i] in base[i] else "❌" for i in range(4)]
 
     results = []
     for i in range(recent_n):
         test_draw = draws[-(i+1)]
         base_draws = draws[:-(i+1)]
-        if len(base_draws) < 10:
-            continue
+        if len(base_draws) < 10: continue
         base = generate_base(base_draws, method=strategy, recent_n=recent_n)
         results.append({
             "Tarikh": test_draw['date'],
@@ -185,7 +179,7 @@ def run_backtest(draws, strategy='hybrid', recent_n=10):
 
     df = pd.DataFrame(results[::-1])
     matched = sum("✅" in r["Insight"] for r in results)
-    st.success(f"🎯 Jumlah digit match: {matched} daripada {recent_n}")
+    st.success(f"🎉 Jumlah digit match: {matched} daripada {recent_n}")
     st.dataframe(df, use_container_width=True)
     
 # ===================== LIKE / DISLIKE ANALYSIS =====================
