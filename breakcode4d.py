@@ -299,105 +299,96 @@ else:
         st.dataframe(pd.DataFrame(draws), use_container_width=True)
 
     # === Wheelpick Tab ===
-    with tabs[4]:
-        st.markdown("### 🎡 Wheelpick Generator")
+with tabs[4]:
+    st.markdown("### 🎡 Wheelpick Generator")
 
-        # Pilih arah bacaan digit untuk Wheelpick
-        arah_pilihan_wp = st.radio(
-            "🔁 Pilih arah bacaan digit:",
-            ["Kiri ke Kanan (P1→P4)", "Kanan ke Kiri (P4→P1)"],
-            index=0,
-            key="wheelpick_arah"
-        )
+    # Pilih arah bacaan digit untuk Wheelpick
+    arah_pilihan_wp = st.radio(
+        "🔁 Pilih arah bacaan digit:",
+        ["Kiri ke Kanan (P1→P4)", "Kanan ke Kiri (P4→P1)"],
+        index=0,
+        key="wheelpick_arah"
+    )
 
-        # Cadangan LIKE / DISLIKE
-        like_sugg, dislike_sugg = get_like_dislike_digits(draws)
-        st.markdown(f"👍 **Cadangan LIKE (Top 3):** `{like_sugg}`")
-        st.markdown(f"👎 **Cadangan DISLIKE (Bottom 3):** `{dislike_sugg}`")
+    # Cadangan LIKE / DISLIKE
+    like_sugg, dislike_sugg = get_like_dislike_digits(draws)
+    st.markdown(f"👍 **Cadangan LIKE (Top 3):** `{like_sugg}`")
+    st.markdown(f"👎 **Cadangan DISLIKE (Bottom 3):** `{dislike_sugg}`")
 
-        # Input manual LIKE / DISLIKE
-        user_like = st.text_input("🟢 Masukkan digit LIKE (pisahkan ruang):", value=' '.join(like_sugg))
-        user_dislike = st.text_input("🔴 Masukkan digit DISLIKE (pisahkan ruang):", value=' '.join(dislike_sugg))
-        like_digits = [d for d in user_like.strip().split() if d.isdigit() and len(d)==1]
-        dislike_digits = [d for d in user_dislike.strip().split() if d.isdigit() and len(d)==1]
+    # Input manual LIKE / DISLIKE
+    user_like = st.text_input("🟢 Masukkan digit LIKE (pisahkan ruang):", value=' '.join(like_sugg))
+    user_dislike = st.text_input("🔴 Masukkan digit DISLIKE (pisahkan ruang):", value=' '.join(dislike_sugg))
+    like_digits = [d for d in user_like.strip().split() if d.isdigit() and len(d)==1]
+    dislike_digits = [d for d in user_dislike.strip().split() if d.isdigit() and len(d)==1]
 
-        mode = st.radio("Mod Input Base:", ["Auto (dari Base)", "Manual Input"], key="wheelpick_mode")
-        if mode == "Manual Input":
-            manual_base = []
-            for i in range(4):
-                val = st.text_input(f"Digit Pilihan untuk Pick {i+1} (cth: 1 3 5 7 9):", key=f"wp_manual_{i}")
-                digs = val.strip().split()
-                if len(digs) != 5 or not all(d.isdigit() and len(d)==1 for d in digs):
-                    st.warning("⚠️ Masukkan 5 digit 0-9 dipisah ruang.")
-                manual_base.append(digs if len(digs)==5 else [str(random.randint(0,9)) for _ in range(5)])
-        else:
-            base = load_base_from_file()
-            if not base or len(base) != 4:
-                st.warning("⚠️ Base tidak sah. Sila klik 'Update Draw' dahulu.")
+    # Pilih mod input base
+    mode = st.radio("Mod Input Base:", ["Auto (dari Base)", "Manual Input"], key="wheelpick_mode")
+
+    # Kumpul manual_base, stop kalau input tidak tepat
+    manual_base = []
+    if mode == "Manual Input":
+        for i in range(4):
+            val = st.text_input(f"Digit Pilihan untuk Pick {i+1} (5 digit, spasi pisah):", key=f"wp_manual_{i}")
+            digs = val.strip().split()
+            if len(digs) != 5 or not all(d.isdigit() and len(d)==1 for d in digs):
+                st.warning(f"⚠️ Pos {i+1}: Masukkan tepat 5 digit 0–9 (sekarang {len(digs)}).")
                 st.stop()
-            manual_base = base
+            manual_base.append(digs)
+    else:
+        base = load_base_from_file()
+        if not base or len(base) != 4:
+            st.warning("⚠️ Base tidak sah. Sila klik 'Update Draw' dahulu.")
+            st.stop()
+        manual_base = base
 
-        lot = st.text_input("Nilai Lot Setiap Nombor (cth: 0.10):", value="0.10", key="wheelpick_lot")
+    lot = st.text_input("Nilai Lot Setiap Nombor (cth: 0.10):", value="0.10", key="wheelpick_lot")
 
-        with st.expander("⚙️ Tapisan Tambahan"):
-            no_repeat = st.checkbox("❌ Buang nombor dengan digit berulang (contoh: 1123)")
-            no_triple = st.checkbox("❌ Buang nombor triple (contoh: 1112)")
-            no_pair = st.checkbox("❌ Buang nombor pair (contoh: 1123)")
-            no_ascend = st.checkbox("❌ Buang nombor menaik (contoh: 1234)")
-            use_history = st.checkbox("❌ Buang nombor yang pernah naik")
-            sim_limit = st.slider("❌ Had maksimum persamaan digit dengan draw terakhir", 0, 4, 2)
+    # Tapisan Tambahan
+    with st.expander("⚙️ Tapisan Tambahan"):
+        no_repeat   = st.checkbox("❌ Buang nombor dengan digit berulang")
+        no_triple   = st.checkbox("❌ Buang nombor triple")
+        no_pair     = st.checkbox("❌ Buang nombor pair")
+        no_ascend   = st.checkbox("❌ Buang nombor menaik")
+        use_history = st.checkbox("❌ Buang nombor yang pernah naik")
+        sim_limit   = st.slider("❌ Had maksimum persamaan digit dengan draw terakhir", 0, 4, 2)
 
-        def apply_filters(combos, draws, no_repeat, no_triple, no_pair, no_ascend, use_history, sim_limit, like_digits, dislike_digits):
-            past = set(d['number'] for d in draws)
-            last = draws[-1]['number'] if draws else "0000"
-            filtered = []
-            for entry in combos:
-                num = entry[:4]
-                digits = list(num)
-                if no_repeat and len(set(digits)) < 4:
-                    continue
-                if no_triple and any(digits.count(d)>=3 for d in digits):
-                    continue
-                if no_pair and any(digits.count(d)==2 for d in set(digits)):
-                    continue
-                if no_ascend and num in ["0123","1234","2345","3456","4567","5678","6789"]:
-                    continue
-                if use_history and num in past:
-                    continue
-                sim = sum(1 for a,b in zip(num, last) if a==b)
-                if sim > sim_limit:
-                    continue
-                if like_digits and not any(d in like_digits for d in num):
-                    continue
-                if dislike_digits and any(d in dislike_digits for d in num):
-                    continue
-                filtered.append(entry)
-            return filtered
+    def apply_filters(combos):
+        past = {d['number'] for d in draws}
+        last = draws[-1]['number'] if draws else "0000"
+        result = []
+        for entry in combos:
+            num = entry[:4]
+            digits = list(num)
+            if no_repeat   and len(set(digits))<4:           continue
+            if no_triple   and any(digits.count(d)>=3 for d in digits): continue
+            if no_pair     and any(digits.count(d)==2 for d in set(digits)): continue
+            if no_ascend   and num in ["0123","1234","2345","3456","4567","5678","6789"]: continue
+            if use_history and num in past:                 continue
+            if sum(a==b for a,b in zip(num,last)) > sim_limit: continue
+            if like_digits and not any(d in like_digits for d in num): continue
+            if dislike_digits and any(d in dislike_digits for d in num): continue
+            result.append(entry)
+        return result
 
-        combos = []
-        if st.button("🎰 Create Wheelpick"):
-            for a in manual_base[0]:
-                for b in manual_base[1]:
-                    for c in manual_base[2]:
-                        for d in manual_base[3]:
-                            combos.append(f"{a}{b}{c}{d}##### {lot}")
-            st.info(f"💡 Sebelum tapis: {len(combos)} nombor")
+    from itertools import product
 
-            combos = apply_filters(
-                combos, draws,
-                no_repeat, no_triple, no_pair, no_ascend, use_history, sim_limit,
-                like_digits, dislike_digits
-            )
+    # Generate dan paparkan wheelpick
+    if st.button("🎰 Create Wheelpick"):
+        # 100% deterministik: gabungan itertools.product
+        combos = [f"{''.join(p)}##### {lot}" for p in product(*manual_base)]
+        st.info(f"💡 Sebelum tapis: {len(combos)} nombor")
 
-            st.success(f"✅ {len(combos)} nombor selepas ditapis.")
-            part_size = 30
-            for i in range((len(combos) + part_size - 1)//part_size):
-                section = combos[i*part_size:(i+1)*part_size]
-                if not section:
-                    break
-                st.markdown(f"**📦 Bahagian {i+1}** ({len(section)} nombor)")
-                st.code('\n'.join(section))
+        combos = apply_filters(combos)
+        st.success(f"✅ Selepas tapis: {len(combos)} nombor")
 
-            filename = f"wheelpick_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
-            data = '\n'.join(combos).encode('utf-8')
-            st.download_button("💾 Muat Turun Semua Nombor", data=data, file_name=filename, mime='text/plain')
+        # Papar hasil dalam bahagian
+        part_size = 30
+        for idx in range(0, len(combos), part_size):
+            section = combos[idx:idx+part_size]
+            st.markdown(f"**📦 Bahagian {idx//part_size+1}** ({len(section)} nombor)")
+            st.code('\n'.join(section))
+
+        # Muat turun semua nombor
+        filename = f"wheelpick_{datetime.now():%Y%m%d_%H%M%S}.txt"
+        data = '\n'.join(combos).encode('utf-8')
+        st.download_button("💾 Muat Turun Semua Nombor", data=data, file_name=filename, mime='text/plain')
