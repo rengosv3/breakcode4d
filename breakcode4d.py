@@ -157,36 +157,42 @@ def generate_qaisara(draws, recent_n=10):
     return combined
     
 # ===================== BACKTEST =====================
-def run_backtest(draws, strategy='hybrid', recent_n=10):
-    if len(draws) < recent_n + 10:
-        st.warning("❗ Tidak cukup draw untuk backtest.")
-        return
 
-    arah_pilihan = st.radio("🔁 Pilih arah bacaan digit:", ["Kiri ke Kanan (P1→P4)", "Kanan ke Kiri (P4→P1)"], index=0)
+# Pilihan arah bacaan digit
+arah_pilihan = st.radio("🔁 Pilih arah bacaan digit:", ["Kiri ke Kanan (P1→P4)", "Kanan ke Kiri (P4→P1)"], index=0)
 
-    def match_insight(fp, base):
-        if arah_pilihan == "Kanan ke Kiri (P4→P1)":
-            fp = fp[::-1]
-            base = base[::-1]
-        return ["✅" if fp[i] in base[i] else "❌" for i in range(4)]
+if st.button("🚀 Jalankan Backtest"):
+    def run_backtest(draws, strategy='hybrid', recent_n=10):
+        if len(draws) < recent_n + 10:
+            st.warning("❗ Tidak cukup draw untuk backtest.")
+            return
 
-    results = []
-    for i in range(recent_n):
-        test_draw = draws[-(i+1)]
-        base_draws = draws[:-(i+1)]
-        if len(base_draws) < 10:
-            continue
-        base = generate_base(base_draws, method=strategy, recent_n=recent_n)
-        results.append({
-            "Tarikh": test_draw['date'],
-            "Result 1st": test_draw['number'],
-            "Insight": ' '.join(f"P{i+1}:{s}" for i, s in enumerate(match_insight(test_draw['number'], base)))
-        })
+        def match_insight(fp, base):
+            if arah_pilihan == "Kanan ke Kiri (P4→P1)":
+                fp = fp[::-1]
+                base = base[::-1]
+            return ["✅" if fp[i] in base[i] else "❌" for i in range(4)]
 
-    df = pd.DataFrame(results[::-1])
-    matched = sum("✅" in r["Insight"] for r in results)
-    st.success(f"🎯 Jumlah digit match: {matched} daripada {recent_n}")
-    st.dataframe(df, use_container_width=True)
+        results = []
+        for i in range(recent_n):
+            test_draw = draws[-(i+1)]
+            base_draws = draws[:-(i+1)]
+            if len(base_draws) < 10:
+                continue
+            base = generate_base(base_draws, method=strategy, recent_n=recent_n)
+            results.append({
+                "Tarikh": test_draw['date'],
+                "Result 1st": test_draw['number'],
+                "Insight": ' '.join(f"P{i+1}:{s}" for i, s in enumerate(match_insight(test_draw['number'], base)))
+            })
+
+        df = pd.DataFrame(results[::-1])
+        matched = sum("✅" in r["Insight"] for r in results)
+        st.success(f"🎯 Jumlah digit match: {matched} daripada {recent_n}")
+        st.dataframe(df, use_container_width=True)
+
+    # Panggil fungsi selepas tekan butang
+    run_backtest(draws, strategy=strategy, recent_n=recent_n)
     
 # ===================== LIKE / DISLIKE ANALYSIS =====================
 def get_like_dislike_digits(draws, recent_n=30):
