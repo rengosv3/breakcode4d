@@ -187,7 +187,7 @@ def run_backtest(draws, strategy='hybrid', recent_n=10, arah='Kiri ke Kanan (P1�
     st.success(f"🎯 Jumlah digit match: {matched} daripada {recent_n}")
     st.dataframe(df, use_container_width=True)
 
-# ===================== LIKE / DISLIKE =====================
+# ===================== LIKE / DISLIKE ANALYSIS =====================
 def get_like_dislike_digits(draws, recent_n=30):
     last = [d['number'] for d in draws[-recent_n:] if 'number' in d and len(d['number']) == 4]
     cnt = Counter()
@@ -281,14 +281,19 @@ else:
     # === Wheelpick Tab ===
     with tabs[4]:
         st.markdown("### 🎡 Wheelpick Generator")
-        like_digits, dislike_digits = get_like_dislike_digits(draws)
-        col1, col2 = st.columns(2)
-        with col1:
-            st.success(f"👍 LIKE Digit: {' '.join(like_digits)}")
-        with col2:
-            st.error(f"👎 DISLIKE Digit: {' '.join(dislike_digits)}")
 
-        mode = st.radio("Mod Input:", ["Auto (dari Base)", "Manual Input"])
+        # Cadangan LIKE / DISLIKE
+        like_sugg, dislike_sugg = get_like_dislike_digits(draws)
+        st.markdown(f"👍 **Cadangan LIKE (Top 3):** `{like_sugg}`")
+        st.markdown(f"👎 **Cadangan DISLIKE (Bottom 3):** `{dislike_sugg}`")
+
+        # Input manual LIKE / DISLIKE
+        user_like = st.text_input("🟢 Masukkan digit LIKE (pisahkan ruang):", value=' '.join(like_sugg))
+        user_dislike = st.text_input("🔴 Masukkan digit DISLIKE (pisahkan ruang):", value=' '.join(dislike_sugg))
+        like_digits = [d for d in user_like.strip().split() if d.isdigit() and len(d)==1]
+        dislike_digits = [d for d in user_dislike.strip().split() if d.isdigit() and len(d)==1]
+
+        mode = st.radio("Mod Input Base:", ["Auto (dari Base)", "Manual Input"])
         if mode == "Manual Input":
             manual_base = []
             for i in range(4):
@@ -314,7 +319,7 @@ else:
             use_history = st.checkbox("❌ Buang nombor yang pernah naik")
             sim_limit = st.slider("❌ Had maksimum persamaan digit dengan draw terakhir", 0, 4, 2)
 
-        def apply_filters(combos, draws, no_repeat, no_triple, no_pair, no_ascend, use_history, sim_limit):
+        def apply_filters(combos, draws, no_repeat, no_triple, no_pair, no_ascend, use_history, sim_limit, like_digits, dislike_digits):
             past = set(d['number'] for d in draws)
             last = draws[-1]['number'] if draws else "0000"
             filtered = []
@@ -334,28 +339,40 @@ else:
                 sim = sum(1 for a,b in zip(num, last) if a==b)
                 if sim > sim_limit:
                     continue
+                # LIKE: mesti ada sekurang-kurangnya satu
+                if like_digits and not any(d in like_digits for d in num):
+                    continue
+                # DISLIKE: tiada langsung
+                if dislike_digits and any(d in dislike_digits for d in num):
+                    continue
                 filtered.append(entry)
             return filtered
 
         combos = []
         if st.button("🎰 Create Wheelpick"):
+            # generate all combos
             for a in manual_base[0]:
                 for b in manual_base[1]:
                     for c in manual_base[2]:
                         for d in manual_base[3]:
                             combos.append(f"{a}{b}{c}{d}##### {lot}")
             st.info(f"💡 Sebelum tapis: {len(combos)} nombor")
+
             combos = apply_filters(
                 combos, draws,
-                no_repeat, no_triple, no_pair, no_ascend, use_history, sim_limit
+                no_repeat, no_triple, no_pair, no_ascend, use_history, sim_limit,
+                like_digits, dislike_digits
             )
+
             st.success(f"✅ {len(combos)} nombor selepas ditapis.")
             part_size = 30
             for i in range((len(combos) + part_size - 1)//part_size):
                 section = combos[i*part_size:(i+1)*part_size]
-                if not section: break
+                if not section:
+                    break
                 st.markdown(f"**📦 Bahagian {i+1}** ({len(section)} nombor)")
                 st.code('\n'.join(section))
+
             filename = f"wheelpick_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
             data = '\n'.join(combos).encode('utf-8')
             st.download_button("💾 Muat Turun Semua Nombor", data=data, file_name=filename, mime='text/plain')
