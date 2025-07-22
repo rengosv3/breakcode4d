@@ -89,73 +89,91 @@ def update_draws(file_path='data/draws.txt', max_days_back=121):
         save_base_to_file(latest_base, 'data/base_last.txt')
     return f"✔ {len(added)} draw baru ditambah." if added else "✔ Tiada draw baru ditambah."
 
-# ===================== STRATEGY BASE =====================
+# ===================== STRATEGY BASE (Patch) =====================
 def generate_base(draws, method='frequency', recent_n=50):
-    return {
-        'frequency': generate_by_frequency,
-        'gap': generate_by_gap,
-        'hybrid': generate_hybrid,
-        'qaisara': generate_qaisara
-    }.get(method, generate_by_frequency)(draws, recent_n)
+    # Semak cukup data
+    total = len(draws)
+    if total < recent_n:
+        st.warning(
+            f"⚠️ Tidak cukup data untuk strategi `{method}`. "
+            f"Minimum {recent_n} draws diperlukan, tapi hanya {total} draws tersedia."
+        )
+        st.stop()
 
-def generate_by_frequency(draws, recent_n=50):
-    recent = [d['number'] for d in draws[-recent_n:]]
+    func = {
+        'frequency': generate_by_frequency,
+        'gap':       generate_by_gap,
+        'hybrid':    generate_hybrid,
+        'qaisara':   generate_qaisara
+    }.get(method)
+
+    return func(draws[-recent_n:], recent_n)
+
+
+def generate_by_frequency(recent, recent_n):
+    # recent: list of dict with key 'number'
+    # kita tahu len(recent)==recent_n
+    # counters per posisi 0–3
     counters = [Counter() for _ in range(4)]
-    for num in recent:
-        for i, dig in enumerate(num):
+    for d in recent:
+        for i, dig in enumerate(d['number']):
             counters[i][dig] += 1
+
+    # top 5 per posisi
     picks = []
     for c in counters:
-        top = [d for d, _ in c.most_common(5)]
-        while len(top) < 5:
-            top.append(str(random.randint(0,9)))
-        picks.append(top)
+        top5 = [dig for dig, _ in c.most_common(5)]
+        picks.append(top5)
     return picks
 
-def generate_by_gap(draws, recent_n=50):
-    recent = [d['number'] for d in draws[-recent_n:]]
-    last_seen = [defaultdict(lambda: -1) for _ in range(4)]
-    gap_scores = [defaultdict(int) for _ in range(4)]
-    for idx, num in enumerate(recent[::-1]):
-        for pos, dig in enumerate(num):
-            if last_seen[pos][dig] != -1:
-                gap_scores[pos][dig] += idx - last_seen[pos][dig]
+
+def generate_by_gap(recent, recent_n):
+    # kira gap (jarak) sejak last seen per posisi
+    last_seen = [defaultdict(lambda: None) for _ in range(4)]
+    gaps = [defaultdict(int) for _ in range(4)]
+
+    # traverse reverse for gap skor
+    for idx, d in enumerate(reversed(recent), start=1):
+        for pos, dig in enumerate(d['number']):
+            if last_seen[pos][dig] is not None:
+                gaps[pos][dig] += idx - last_seen[pos][dig]
             last_seen[pos][dig] = idx
+
+    # top 5 per posisi ikut jarak terbesar
     picks = []
-    for gs in gap_scores:
-        sorted_digits = sorted(gs.items(), key=lambda x: -x[1], reverse=True)
-        top = [d for d, _ in sorted_digits[:5]]
-        while len(top) < 5:
-            top.append(str(random.randint(0,9)))
-        picks.append(top)
+    for g in gaps:
+        top5 = [dig for dig, _ in sorted(g.items(), key=lambda x: -x[1])[:5]]
+        picks.append(top5)
     return picks
 
-def generate_hybrid(draws, recent_n=10):
-    freq = generate_by_frequency(draws, recent_n)
-    gap = generate_by_gap(draws, recent_n)
+
+def generate_hybrid(recent, recent_n):
+    # hybrid = gabungan frequency + gap
+    freq = generate_by_frequency(recent, recent_n)
+    gap  = generate_by_gap(recent, recent_n)
+
     picks = []
     for f, g in zip(freq, gap):
-        combo = list(set(f + g))
-        random.shuffle(combo)
-        top = combo[:5]
-        while len(top) < 5:
-            top.append(str(random.randint(0,9)))
-        picks.append(top)
+        # union & ambil top 5 ikut frequency first, kemudian gap tiebreak
+        cnt = Counter(f + g)
+        # urut ikut count tertinggi
+        hybrid_top = [dig for dig, _ in cnt.most_common(5)]
+        picks.append(hybrid_top)
     return picks
 
-def generate_qaisara(draws, recent_n=10):
-    bf = generate_by_frequency(draws, recent_n)
-    bg = generate_by_gap(draws, recent_n)
-    bh = generate_hybrid(draws, recent_n)
-    combined = []
+
+def generate_qaisara(recent, recent_n):
+    # qaisara = skor teratas dari freq + gap + hybrid
+    freq   = generate_by_frequency(recent, recent_n)
+    gap    = generate_by_gap(recent, recent_n)
+    hybrid = generate_hybrid(recent, recent_n)
+
+    picks = []
     for i in range(4):
-        all_d = bf[i] + bg[i] + bh[i]
-        cnt = Counter(all_d)
-        top = [d for d, _ in cnt.most_common(5)]
-        while len(top) < 5:
-            top.append(str(random.randint(0,9)))
-        combined.append(top)
-    return combined
+        cnt = Counter(freq[i] + gap[i] + hybrid[i])
+        top5 = [dig for dig, _ in cnt.most_common(5)]
+        picks.append(top5)
+    return picks
 
 # ===================== BACKTEST FUNCTION =====================
 def run_backtest(draws, strategy='hybrid', recent_n=10, arah='Kiri ke Kanan (P1→P4)', backtest_rounds=10):
