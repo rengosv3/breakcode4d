@@ -267,7 +267,8 @@ else:
         arah_pilihan = st.radio(
             "🔁 Pilih arah bacaan digit:",
             ["Kiri ke Kanan (P1→P4)", "Kanan ke Kiri (P4→P1)"],
-            index=0
+            index=0,
+            key="backtest_arah"
         )
         strat = st.selectbox("Pilih strategi base untuk backtest:", ['hybrid', 'frequency', 'gap', 'qaisara'])
         base_n = st.slider("Jumlah draw terkini digunakan untuk jana base:", 5, 100, 30, 5)
@@ -287,7 +288,8 @@ else:
         arah_pilihan_wp = st.radio(
             "🔁 Pilih arah bacaan digit:",
             ["Kiri ke Kanan (P1→P4)", "Kanan ke Kiri (P4→P1)"],
-            index=0
+            index=0,
+            key="wheelpick_arah"
         )
 
         # Cadangan LIKE / DISLIKE
@@ -301,11 +303,11 @@ else:
         like_digits = [d for d in user_like.strip().split() if d.isdigit() and len(d)==1]
         dislike_digits = [d for d in user_dislike.strip().split() if d.isdigit() and len(d)==1]
 
-        mode = st.radio("Mod Input Base:", ["Auto (dari Base)", "Manual Input"])
+        mode = st.radio("Mod Input Base:", ["Auto (dari Base)", "Manual Input"], key="wheelpick_mode")
         if mode == "Manual Input":
             manual_base = []
             for i in range(4):
-                val = st.text_input(f"Digit Pilihan untuk Pick {i+1} (cth: 1 3 5 7 9):")
+                val = st.text_input(f"Digit Pilihan untuk Pick {i+1} (cth: 1 3 5 7 9):", key=f"wp_manual_{i}")
                 digs = val.strip().split()
                 if len(digs) != 5 or not all(d.isdigit() and len(d)==1 for d in digs):
                     st.warning("⚠️ Masukkan 5 digit 0-9 dipisah ruang.")
@@ -317,7 +319,7 @@ else:
                 st.stop()
             manual_base = base
 
-        lot = st.text_input("Nilai Lot Setiap Nombor (cth: 0.10):", value="0.10")
+        lot = st.text_input("Nilai Lot Setiap Nombor (cth: 0.10):", value="0.10", key="wheelpick_lot")
 
         with st.expander("⚙️ Tapisan Tambahan"):
             no_repeat = st.checkbox("❌ Buang nombor dengan digit berulang (contoh: 1123)")
@@ -347,10 +349,8 @@ else:
                 sim = sum(1 for a,b in zip(num, last) if a==b)
                 if sim > sim_limit:
                     continue
-                # LIKE: mesti ada sekurang-kurangnya satu
                 if like_digits and not any(d in like_digits for d in num):
                     continue
-                # DISLIKE: tiada langsung
                 if dislike_digits and any(d in dislike_digits for d in num):
                     continue
                 filtered.append(entry)
@@ -358,7 +358,6 @@ else:
 
         combos = []
         if st.button("🎰 Create Wheelpick"):
-            # generate all combos
             for a in manual_base[0]:
                 for b in manual_base[1]:
                     for c in manual_base[2]:
