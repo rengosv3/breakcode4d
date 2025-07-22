@@ -11,7 +11,7 @@ from zoneinfo import ZoneInfo
 from bs4 import BeautifulSoup
 
 # ===================== EXPIRED DATE CHECK =====================
-expired = st.secrets.get("expired_until", "2024-07-25 23:59")
+expired = st.secrets.get("expired_until", "2025-08-25 23:59")
 expired_date = datetime.strptime(expired, "%Y-%m-%d %H:%M")
 
 if datetime.now() > expired_date:
