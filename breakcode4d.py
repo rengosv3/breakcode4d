@@ -272,7 +272,6 @@ else:
         strat = st.selectbox("Pilih strategi base untuk backtest:", ['hybrid', 'frequency', 'gap', 'qaisara'])
         base_n = st.slider("Jumlah draw terkini digunakan untuk jana base:", 5, 100, 30, 5)
         backtest_n = st.slider("Jumlah draw yang diuji (berapa kali backtest):", 5, 50, 10)
-
         if st.button("🚀 Jalankan Backtest"):
             run_backtest(draws, strategy=strat, recent_n=base_n, arah=arah_pilihan, backtest_rounds=backtest_n)
 
@@ -283,6 +282,13 @@ else:
     # === Wheelpick Tab ===
     with tabs[4]:
         st.markdown("### 🎡 Wheelpick Generator")
+
+        # Pilih arah bacaan digit untuk Wheelpick
+        arah_pilihan_wp = st.radio(
+            "🔁 Pilih arah bacaan digit:",
+            ["Kiri ke Kanan (P1→P4)", "Kanan ke Kiri (P4→P1)"],
+            index=0
+        )
 
         # Cadangan LIKE / DISLIKE
         like_sugg, dislike_sugg = get_like_dislike_digits(draws)
