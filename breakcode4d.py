@@ -83,11 +83,21 @@ def update_draws(file_path='data/draws.txt', max_days_back=121):
             current += timedelta(days=1)
 
     if added:
-        draws = load_draws(file_path)
-        latest_base = generate_base(draws, method='frequency', recent_n=50)
-        save_base_to_file(latest_base, 'data/base.txt')
-        save_base_to_file(latest_base, 'data/base_last.txt')
-    return f"✔ {len(added)} draw baru ditambah." if added else "✔ Tiada draw baru ditambah."
+    draws = load_draws(file_path)
+
+    # ✅ SALIN base.txt → base_last.txt JIKA base.txt tidak kosong
+    if os.path.exists('data/base.txt'):
+        with open('data/base.txt', 'r') as f:
+            content = f.read().strip()
+        if content:
+            import shutil
+            shutil.copyfile('data/base.txt', 'data/base_last.txt')
+
+    # ✅ Jana base terkini → base.txt
+    latest_base = generate_base(draws, method='frequency', recent_n=50)
+    save_base_to_file(latest_base, 'data/base.txt')
+
+return f"✔ {len(added)} draw baru ditambah." if added else "✔ Tiada draw baru ditambah."
 
 # ===================== STRATEGY BASE =====================
 def generate_base(draws, method='frequency', recent_n=50):
@@ -239,25 +249,27 @@ else:
     with tabs[0]:
         st.markdown("### 📌 Insight Terakhir")
         last = draws[-1]
-        base = load_base_from_file()
-        if not base or len(base)!=4:
-            st.warning("⚠️ Base belum dijana atau tidak lengkap.")
-        else:
-            st.markdown(f"**Tarikh Draw:** `{last['date']}`")
-            st.markdown(f"**Nombor 1st Prize:** `{last['number']}`")
-            cols = st.columns(4)
-            for i in range(4):
-                dig = last['number'][i]
-                (cols[i].success if dig in base[i] else cols[i].error)(f"Pos {i+1}: {'✅' if dig in base[i] else '❌'} `{dig}`")
-            st.markdown("### 📋 Base Digunakan:")
-            for i,b in enumerate(base):
-                st.text(f"Pos {i+1}: {' '.join(b)}")
+        base = load_base_from_file('data/base_last.txt')  # ✅ Guna base terakhir
+
+    if not base or len(base) != 4:
+        st.warning("⚠️ Base terakhir (`base_last.txt`) belum wujud atau kosong.\nSila tekan 'Update Draw Terkini' dahulu dan pastikan draw sebelumnya telah lengkap.")
+        st.stop()
+    else:
+        st.markdown(f"**Tarikh Draw:** `{last['date']}`")
+        st.markdown(f"**Nombor 1st Prize:** `{last['number']}`")
+        cols = st.columns(4)
+        for i in range(4):
+            dig = last['number'][i]
+            (cols[i].success if dig in base[i] else cols[i].error)(f"Pos {i+1}: {'✅' if dig in base[i] else '❌'} `{dig}`")
+        st.markdown("### 📋 Base Digunakan (Sebelum Draw Ini):")
+        for i, b in enumerate(base):
+            st.text(f"Pos {i+1}: {' '.join(b)}")
 
     # Ramalan Tab
     with tabs[1]:
         st.markdown("### 🧠 Ramalan Base")
         strat = st.selectbox("Pilih strategi base untuk ramalan:", ['frequency','gap','hybrid','qaisara','smartpattern'])
-        recent_n = st.slider("Jumlah draw terkini digunakan untuk base:", 5,100,30,5)
+        recent_n = st.slider("Jumlah draw terkini digunakan untuk base:", 5,120,30,5)
         base = generate_base(draws, method=strat, recent_n=recent_n)
         for i,p in enumerate(base):
             st.text(f"Pick {i+1}: {' '.join(p)}")
@@ -271,7 +283,7 @@ else:
         arah_pilihan = st.radio("🔁 Pilih arah bacaan digit:",
             ["Kiri ke Kanan (P1→P4)","Kanan ke Kiri (P4→P1)"], index=0, key="backtest_arah")
         strat = st.selectbox("Pilih strategi base untuk backtest:", ['frequency','gap','hybrid','qaisara','smartpattern'])
-        base_n = st.slider("Jumlah draw terkini digunakan untuk jana base:",5,100,30,5)
+        base_n = st.slider("Jumlah draw terkini digunakan untuk jana base:",5,120,30,5)
         backtest_n = st.slider("Jumlah draw yang diuji (berapa kali backtest):",5,50,10)
         if st.button("🚀 Jalankan Backtest"):
             run_backtest(draws, strategy=strat, recent_n=base_n, arah=arah_pilihan, backtest_rounds=backtest_n)
