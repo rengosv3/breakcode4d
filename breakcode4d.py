@@ -84,7 +84,7 @@ def update_draws(file_path='data/draws.txt', max_days_back=121):
 
     if added:
         draws = load_draws(file_path)
-        latest_base = generate_base(draws, method='frequency', recent_n=121)
+        latest_base = generate_base(draws, method='frequency', recent_n=50)
         save_base_to_file(latest_base, 'data/base.txt')
         save_base_to_file(latest_base, 'data/base_last.txt')
     return f"✔ {len(added)} draw baru ditambah." if added else "✔ Tiada draw baru ditambah."
