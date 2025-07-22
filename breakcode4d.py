@@ -25,9 +25,11 @@ if "login_success" not in st.session_state:
 # ===================== MULTI-USER LOGIN WITH PER-USER EXPIRY =====================
 if not st.session_state.login_success:
     st.title("🔐 Sila Login Dahulu")
+
     st.info(
-        "Jika tiada akses, anda boleh guna akaun percuma:\n\n"
-        "hubungi admin [@rengosv3](https://t.me/rengosv3) di Telegram untuk maklumat lanjut.\n"
+        "Jika anda belum mempunyai akses:\n\n"
+        "📩 Sila hubungi admin [@rengosv3](https://t.me/rengosv3) di Telegram untuk maklumat lanjut.\n\n"
+        "Atau log masuk sebagai pengguna percuma:\n\n"
         "🆓 **ID:** `breakcode4d`\n"
         "🔑 **Password:** `1234`"
     )
