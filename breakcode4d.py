@@ -299,8 +299,8 @@ else:
         st.dataframe(pd.DataFrame(draws), use_container_width=True)
 
     # === Wheelpick Tab ===
-with tabs[4]:
-    st.markdown("### 🎡 Wheelpick Generator")
+    with tabs[4]:
+        st.markdown("### 🎡 Wheelpick Generator")
 
     # Pilih arah bacaan digit untuk Wheelpick
     arah_pilihan_wp = st.radio(
