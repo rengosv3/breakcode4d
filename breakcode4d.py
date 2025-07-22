@@ -11,12 +11,27 @@ from zoneinfo import ZoneInfo
 from bs4 import BeautifulSoup
 
 # ===================== EXPIRED DATE CHECK =====================
-expired = st.secrets.get("expired_until", "2025-08-25 23:59")
-expired_date = datetime.strptime(expired, "%Y-%m-%d %H:%M")
+
+# ========== INPUT LOGIN ==========
+username = st.text_input("🧑 ID Pengguna")
+password = st.text_input("🔑 Kata Laluan", type="password")
+
+# ========== AMBIL USER & EXPIRED ==========
+auth_users = st.secrets.get("auth_users", {})
+user_expiry = st.secrets.get("user_expiry", {})
+
+# ========== SEMAK LOGIN ==========
+if username not in auth_users or password != auth_users[username]:
+    st.warning("Sila masukkan ID dan Kata Laluan yang sah.")
+    st.stop()
+
+# ========== SEMAK TARIKH AKSES USER ==========
+expired_str = user_expiry.get(username, "2099-12-31 23:59")  # default jika tiada
+expired_date = datetime.strptime(expired_str, "%Y-%m-%d %H:%M")
 
 if datetime.now() > expired_date:
-    st.title("🔒 Akses Disekat")
-    st.error("Access disekat. Sila hubungi admin [@rengosv3](https://t.me/rengosv3) di Telegram untuk maklumat lanjut.")
+    st.title("🔒 Akses Tamat")
+    st.error(f"Akses untuk '{username}' telah tamat. Sila hubungi admin [@rengosv3](https://t.me/rengosv3).")
     st.stop()
 
 # ===================== COUNTDOWN DRAW =====================
