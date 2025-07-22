@@ -61,7 +61,7 @@ def get_1st_prize(date_str):
         print(f"❌ Ralat semasa request untuk {date_str}: {e}")
         return None
 
-def update_draws(file_path='data/draws.txt', max_days_back=121):
+def update_draws(file_path='data/draws.txt', max_days_back=31):
     # ✅ Muat semua draw sedia ada dalam bentuk set tarikh
     draws = load_draws(file_path)
     existing_dates = set([d['date'] for d in draws])
@@ -181,6 +181,17 @@ def run_backtest(draws, strategy='hybrid', recent_n=10):
     matched = sum("✅" in r["Insight"] for r in results)
     st.success(f"🎉 Jumlah digit match: {matched} daripada {recent_n}")
     st.dataframe(df, use_container_width=True)
+    
+# ===================== LIKE / DISLIKE ANALYSIS =====================
+def get_like_dislike_digits(draws, recent_n=30):
+    last_draws = [d['number'] for d in draws[-recent_n:] if 'number' in d and len(d['number']) == 4]
+    digit_counter = Counter()
+    for number in last_draws:
+        digit_counter.update(number)
+    most_common = digit_counter.most_common()
+    like = [d for d, _ in most_common[:3]]
+    dislike = [d for d, _ in most_common[-3:]] if len(most_common) >= 3 else []
+    return like, dislike
 
 # ===================== UI =====================
 st.set_page_config(page_title="Breakcode4D Predictor", layout="wide")
@@ -254,6 +265,15 @@ else:
             
     with tabs[4]:
         st.markdown("### 🎡 Wheelpick Generator")
+        
+        # ================= LIKE / DISLIKE SUGGESTION =================
+        like_digits, dislike_digits = get_like_dislike_digits(draws)
+        st.markdown("### 💡 Cadangan LIKE / DISLIKE Digit Berdasarkan 30 Cabutan Terakhir")
+        col1, col2 = st.columns(2)
+        with col1:
+            st.success(f"👍 LIKE Digit: {' '.join(like_digits)}")
+        with col2:
+            st.error(f"👎 DISLIKE Digit: {' '.join(dislike_digits)}")
 
         # Input mod manual atau auto
         mode = st.radio("Mod Input:", ["Auto (dari Base)", "Manual Input"])
