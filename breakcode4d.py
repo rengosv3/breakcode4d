@@ -3,7 +3,6 @@ import streamlit as st
 import os
 import re
 import requests
-import random
 import pandas as pd
 from datetime import datetime, timedelta
 from collections import Counter, defaultdict
@@ -18,6 +17,7 @@ def get_draw_countdown_from_last_8pm():
     return (last_8pm + timedelta(days=1)) - now
 
 # ===================== LOAD & SAVE FILE =====================
+@st.cache_data
 def load_draws(file_path='data/draws.txt'):
     if not os.path.exists(file_path):
         return []
@@ -35,6 +35,7 @@ def save_base_to_file(base_digits, file_path='data/base.txt'):
         for pick in base_digits:
             f.write(' '.join(str(d) for d in pick) + '\n')
 
+@st.cache_data
 def load_base_from_file(file_path='data/base.txt'):
     if not os.path.exists(file_path):
         return []
@@ -61,6 +62,7 @@ def get_1st_prize(date_str):
         return None
 
 def update_draws(file_path='data/draws.txt', max_days_back=121):
+    st.cache_data.clear()  # 🚨 Kosongkan cache bila data draw dikemaskini
     draws = load_draws(file_path)
     existing_dates = set(d['date'] for d in draws)
     last_date = (datetime.today() - timedelta(max_days_back)
@@ -89,9 +91,9 @@ def update_draws(file_path='data/draws.txt', max_days_back=121):
         save_base_to_file(latest_base, 'data/base_last.txt')
     return f"✔ {len(added)} draw baru ditambah." if added else "✔ Tiada draw baru ditambah."
 
-# ===================== STRATEGY BASE (Patch) =====================
+# ===================== STRATEGY BASE =====================
+@st.cache_data
 def generate_base(draws, method='frequency', recent_n=50):
-    # Semak cukup data
     total = len(draws)
     if total < recent_n:
         st.warning(
@@ -109,65 +111,39 @@ def generate_base(draws, method='frequency', recent_n=50):
 
     return func(draws[-recent_n:], recent_n)
 
-
 def generate_by_frequency(recent, recent_n):
-    # recent: list of dict with key 'number'
-    # kita tahu len(recent)==recent_n
-    # counters per posisi 0–3
     counters = [Counter() for _ in range(4)]
     for d in recent:
         for i, dig in enumerate(d['number']):
             counters[i][dig] += 1
-
-    # top 5 per posisi
-    picks = []
-    for c in counters:
-        top5 = [dig for dig, _ in c.most_common(5)]
-        picks.append(top5)
+    picks = [[dig for dig, _ in c.most_common(5)] for c in counters]
     return picks
 
-
 def generate_by_gap(recent, recent_n):
-    # kira gap (jarak) sejak last seen per posisi
     last_seen = [defaultdict(lambda: None) for _ in range(4)]
     gaps = [defaultdict(int) for _ in range(4)]
-
-    # traverse reverse for gap skor
     for idx, d in enumerate(reversed(recent), start=1):
         for pos, dig in enumerate(d['number']):
             if last_seen[pos][dig] is not None:
                 gaps[pos][dig] += idx - last_seen[pos][dig]
             last_seen[pos][dig] = idx
-
-    # top 5 per posisi ikut jarak terbesar
-    picks = []
-    for g in gaps:
-        top5 = [dig for dig, _ in sorted(g.items(), key=lambda x: -x[1])[:5]]
-        picks.append(top5)
+    picks = [[dig for dig, _ in sorted(g.items(), key=lambda x: -x[1])[:5]] for g in gaps]
     return picks
 
-
 def generate_hybrid(recent, recent_n):
-    # hybrid = gabungan frequency + gap
     freq = generate_by_frequency(recent, recent_n)
     gap  = generate_by_gap(recent, recent_n)
-
     picks = []
     for f, g in zip(freq, gap):
-        # union & ambil top 5 ikut frequency first, kemudian gap tiebreak
         cnt = Counter(f + g)
-        # urut ikut count tertinggi
         hybrid_top = [dig for dig, _ in cnt.most_common(5)]
         picks.append(hybrid_top)
     return picks
 
-
 def generate_qaisara(recent, recent_n):
-    # qaisara = skor teratas dari freq + gap + hybrid
     freq   = generate_by_frequency(recent, recent_n)
     gap    = generate_by_gap(recent, recent_n)
     hybrid = generate_hybrid(recent, recent_n)
-
     picks = []
     for i in range(4):
         cnt = Counter(freq[i] + gap[i] + hybrid[i])
@@ -180,6 +156,7 @@ def run_backtest(draws, strategy='hybrid', recent_n=10, arah='Kiri ke Kanan (P1�
     if len(draws) < recent_n + backtest_rounds:
         st.warning("❗ Tidak cukup draw untuk backtest.")
         return
+
     def match_insight(fp, base):
         if arah == "Kanan ke Kiri (P4→P1)":
             fp = fp[::-1]
@@ -302,7 +279,6 @@ else:
     with tabs[4]:
         st.markdown("### 🎡 Wheelpick Generator")
 
-        # Pilih arah bacaan digit untuk Wheelpick
         arah_pilihan_wp = st.radio(
             "🔁 Pilih arah bacaan digit:",
             ["Kiri ke Kanan (P1→P4)", "Kanan ke Kiri (P4→P1)"],
@@ -310,12 +286,10 @@ else:
             key="wheelpick_arah"
         )
 
-        # Cadangan LIKE / DISLIKE
         like_sugg, dislike_sugg = get_like_dislike_digits(draws)
         st.markdown(f"👍 **Cadangan LIKE (Top 3):** `{like_sugg}`")
         st.markdown(f"👎 **Cadangan DISLIKE (Bottom 3):** `{dislike_sugg}`")
 
-        # Input manual LIKE / DISLIKE
         user_like = st.text_input("🟢 Masukkan digit LIKE (pisahkan ruang):", value=' '.join(like_sugg))
         user_dislike = st.text_input("🔴 Masukkan digit DISLIKE (pisahkan ruang):", value=' '.join(dislike_sugg))
         like_digits = [d for d in user_like.strip().split() if d.isdigit() and len(d)==1]
