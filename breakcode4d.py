@@ -7,7 +7,8 @@ import random
 import pandas as pd
 from datetime import datetime, timedelta
 from collections import Counter, defaultdict
-from zoneinfo import ZoneInfo  # Python 3.9+
+from zoneinfo import ZoneInfo
+from bs4 import BeautifulSoup
 
 # ===================== COUNTDOWN DRAW =====================
 def get_draw_countdown_from_last_8pm():
@@ -44,19 +45,20 @@ def get_1st_prize(date_str):
     try:
         resp = requests.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=10)
         if resp.status_code != 200:
-            print(f"❌ Status code bukan 200 untuk {date_str}: {resp.status_code}")
+            print(f"❌ Status bukan 200 untuk {date_str}: {resp.status_code}")
             return None
 
-        # Lebih fleksibel untuk struktur HTML
-        m = re.search(r'id="1stPz"[^>]*>(\d{4})<', resp.text)
-        if not m:
-            print(f"❌ Tiada padanan untuk tarikh {date_str}")
-            print("Contoh respons:", resp.text[:300])
+        soup = BeautifulSoup(resp.text, "html.parser")
+        prize_tag = soup.find("span", id="1stPz")
+
+        if prize_tag and prize_tag.text.strip().isdigit() and len(prize_tag.text.strip()) == 4:
+            return prize_tag.text.strip()
+        else:
+            print(f"❌ Tidak jumpa 1st Prize untuk {date_str}")
             return None
-        return m.group(1)
 
     except requests.RequestException as e:
-        print(f"❌ Ralat semasa capai laman web untuk {date_str}: {e}")
+        print(f"❌ Ralat semasa request untuk {date_str}: {e}")
         return None
 
 def update_draws(file_path='data/draws.txt', max_days_back=121):
