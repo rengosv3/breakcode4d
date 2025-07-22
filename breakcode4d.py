@@ -158,8 +158,8 @@ def generate_qaisara(draws, recent_n=10):
     return combined
 
 # ===================== BACKTEST FUNCTION =====================
-def run_backtest(draws, strategy='hybrid', recent_n=10, arah='Kiri ke Kanan (P1→P4)'):
-    if len(draws) < recent_n + 10:
+def run_backtest(draws, strategy='hybrid', recent_n=10, arah='Kiri ke Kanan (P1→P4)', backtest_rounds=10):
+    if len(draws) < recent_n + backtest_rounds:
         st.warning("❗ Tidak cukup draw untuk backtest.")
         return
     def match_insight(fp, base):
@@ -169,10 +169,10 @@ def run_backtest(draws, strategy='hybrid', recent_n=10, arah='Kiri ke Kanan (P1�
         return ["✅" if fp[i] in base[i] else "❌" for i in range(4)]
 
     results = []
-    for i in range(recent_n):
+    for i in range(backtest_rounds):
         test = draws[-(i+1)]
         past = draws[:-(i+1)]
-        if len(past) < 10:
+        if len(past) < recent_n:
             continue
         base = generate_base(past, method=strategy, recent_n=recent_n)
         insight = match_insight(test['number'], base)
@@ -184,7 +184,7 @@ def run_backtest(draws, strategy='hybrid', recent_n=10, arah='Kiri ke Kanan (P1�
 
     df = pd.DataFrame(results[::-1])
     matched = sum("✅" in r["Insight"] for r in results)
-    st.success(f"🎯 Jumlah digit match: {matched} daripada {recent_n}")
+    st.success(f"🎯 Jumlah digit match: {matched} daripada {backtest_rounds}")
     st.dataframe(df, use_container_width=True)
 
 # ===================== LIKE / DISLIKE ANALYSIS =====================
@@ -270,9 +270,11 @@ else:
             index=0
         )
         strat = st.selectbox("Pilih strategi base untuk backtest:", ['hybrid', 'frequency', 'gap', 'qaisara'])
-        recent_n = st.slider("Jumlah draw terkini untuk backtest:", 5, 50, 10)
+        base_n = st.slider("Jumlah draw terkini digunakan untuk jana base:", 5, 100, 30, 5)
+        backtest_n = st.slider("Jumlah draw yang diuji (berapa kali backtest):", 5, 50, 10)
+
         if st.button("🚀 Jalankan Backtest"):
-            run_backtest(draws, strategy=strat, recent_n=recent_n, arah=arah_pilihan)
+            run_backtest(draws, strategy=strat, recent_n=base_n, arah=arah_pilihan, backtest_rounds=backtest_n)
 
     # === Draw List Tab ===
     with tabs[3]:
