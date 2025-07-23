@@ -70,16 +70,15 @@ def update_draws(file_path='data/draws.txt', max_days_back=121):
     current = last_date + timedelta(days=1)
     added = []
 
-    # ✅ LANGKAH 1: Jana dulu base semasa dan simpan ke base_last.txt jika cukup data
-    if len(draws) >= 50:
-        base_sebelum = generate_base(draws, method='frequency', recent_n=50)
+    # ✅ LANGKAH 1: Jana base_last.txt dari draw SEMALAM
+    if len(draws) >= 51:
+        base_sebelum = generate_base(draws[:-1], method='frequency', recent_n=50)
         save_base_to_file(base_sebelum, 'data/base_last.txt')
     else:
-        # fallback: padam base_last.txt jika tak cukup data
         if os.path.exists('data/base_last.txt'):
             os.remove('data/base_last.txt')
 
-    # ✅ LANGKAH 2: Tambah draw baru
+    # ✅ LANGKAH 2: Tambah draw baru (jika ada)
     os.makedirs(os.path.dirname(file_path), exist_ok=True)
     with open(file_path, 'a') as f:
         while current.date() <= yesterday.date():
@@ -93,11 +92,11 @@ def update_draws(file_path='data/draws.txt', max_days_back=121):
                 added.append({'date': date_str, 'number': prize})
             current += timedelta(days=1)
 
-    # ✅ LANGKAH 3: Selepas draw baru ditambah → jana base terkini ke base.txt
-    if added:
-        draws = load_draws(file_path)
-        latest_base = generate_base(draws, method='frequency', recent_n=50)
-        save_base_to_file(latest_base, 'data/base.txt')
+    # ✅ LANGKAH 3: Jana base.txt dari draw terkini
+    draws = load_draws(file_path)
+    if len(draws) >= 50:
+        base_terkini = generate_base(draws, method='frequency', recent_n=50)
+        save_base_to_file(base_terkini, 'data/base.txt')
 
     return f"✔ {len(added)} draw baru ditambah." if added else "✔ Tiada draw baru ditambah."
 
