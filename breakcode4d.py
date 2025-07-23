@@ -84,19 +84,19 @@ def update_draws(file_path='data/draws.txt', max_days_back=121, recent_n=50):
             current += timedelta(days=1)
 
     if added:
-        # 1. Draw sebelum terkini
-        draws_before = load_draws(file_path)[:-len(added)]
+        # 1. draw sebelum yang terbaru
+        all_draws = load_draws(file_path)
+        draws_before = all_draws[:-len(added)]
 
-        # 2. Jana base_last.txt — fallback kalau draws_before < recent_n
+        # 2. jana base_last.txt dari draws_before (fallback kalau tak cukup)
         if len(draws_before) >= recent_n:
             base_last = generate_base(draws_before, method='frequency', recent_n=recent_n)
         else:
-            # fallback guna semua draws (supaya tak kosong)
-            base_last = generate_base(load_draws(file_path), method='frequency', recent_n=min(len(load_draws(file_path)), recent_n))
+            base_last = generate_base(all_draws, method='frequency', recent_n=min(len(all_draws), recent_n))
         save_base_to_file(base_last, 'data/base_last.txt')
 
-        # 3. Jana base.txt seperti biasa
-        latest_base = generate_base(load_draws(file_path), method='frequency', recent_n=recent_n)
+        # 3. jana base.txt dari all_draws (termasuk yang baru)
+        latest_base = generate_base(all_draws, method='frequency', recent_n=recent_n)
         save_base_to_file(latest_base, 'data/base.txt')
 
     return f"✔ {len(added)} draw baru ditambah." if added else "✔ Tiada draw baru ditambah."
