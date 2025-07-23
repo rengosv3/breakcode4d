@@ -61,7 +61,7 @@ def get_1st_prize(date_str):
         print(f"❌ Ralat semasa request untuk {date_str}: {e}")
         return None
 
-def update_draws(file_path='data/draws.txt', max_days_back=121):
+def update_draws(file_path='data/draws.txt', max_days_back=121, recent_n=50):
     draws = load_draws(file_path)
     existing_dates = set(d['date'] for d in draws)
     last_date = (datetime.today() - timedelta(max_days_back)
@@ -84,18 +84,19 @@ def update_draws(file_path='data/draws.txt', max_days_back=121):
             current += timedelta(days=1)
 
     if added:
-        # 1. draw sebelum yang terbaru
+        # 1. Draw sebelum terkini
         draws_before = load_draws(file_path)[:-len(added)]
 
-        # 2. jana base_last.txt dari draws_before
-        base_last = generate_base(draws_before, method='frequency', recent_n=50)
+        # 2. Jana base_last.txt — fallback kalau draws_before < recent_n
+        if len(draws_before) >= recent_n:
+            base_last = generate_base(draws_before, method='frequency', recent_n=recent_n)
+        else:
+            # fallback guna semua draws (supaya tak kosong)
+            base_last = generate_base(load_draws(file_path), method='frequency', recent_n=min(len(load_draws(file_path)), recent_n))
         save_base_to_file(base_last, 'data/base_last.txt')
 
-        # 3. draw penuh termasuk yang baru
-        draws = load_draws(file_path)
-
-        # 4. jana base.txt dari draw penuh
-        latest_base = generate_base(draws, method='frequency', recent_n=50)
+        # 3. Jana base.txt seperti biasa
+        latest_base = generate_base(load_draws(file_path), method='frequency', recent_n=recent_n)
         save_base_to_file(latest_base, 'data/base.txt')
 
     return f"✔ {len(added)} draw baru ditambah." if added else "✔ Tiada draw baru ditambah."
