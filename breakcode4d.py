@@ -101,54 +101,41 @@ def update_draws(file_path='data/draws.txt', max_days_back=181):
 # ===================== STRATEGY BASE =====================
 def generate_base(draws, method='frequency', recent_n=50):
     total = len(draws)
-    if total < recent_n:
+    if total < min(35, 45, 50, 60):  # minimum diperlukan untuk smartpattern baru
         st.warning(
             f"⚠️ Tidak cukup data untuk strategi `{method}`. "
-            f"Minimum {recent_n} draws diperlukan, tapi hanya {total} draws tersedia."
+            f"Minimum 60 draws diperlukan, tapi hanya {total} draws tersedia."
         )
         st.stop()
 
-    recent = [d['number'] for d in draws[-recent_n:] if 'number' in d and len(d['number']) == 4]
-
-    # ========== SMARTPATTERN (SmartAI) ==========
+    # ========== SMARTPATTERN (Gabungan pelbagai strategi) ==========
     if method == "smartpattern":
-        freq_all = [Counter() for _ in range(4)]
-        boost_recent = [Counter() for _ in range(4)]
-        trend_bonus = [defaultdict(float) for _ in range(4)]
-
-        # Frekuensi umum (50 draw)
-        for num in recent:
-            for i, d in enumerate(num):
-                freq_all[i][d] += 1
-
-        # Boost daripada 5 draw terakhir
-        for num in recent[-5:]:
-            for i, d in enumerate(num):
-                boost_recent[i][d] += 1
-
-        # Tambahan markah jika digit muncul ≥2 kali (trending)
-        for i in range(4):
-            for d, cnt in boost_recent[i].items():
-                if cnt >= 2:
-                    trend_bonus[i][d] += 3.0  # bonus trend
-
-        # Gabung markah semua faktor
+        # Set setiap strategi dan recent_n untuk setiap pick
+        setting = [
+            ('qaisara', 60),   # Pick 1
+            ('hybrid', 45),    # Pick 2
+            ('frequency', 50), # Pick 3
+            ('hybrid', 35),    # Pick 4
+        ]
         result = []
-        for i in range(4):
-            score = defaultdict(float)
-            for d in '0123456789':
-                score[d] = freq_all[i][d] * 1.0 + boost_recent[i][d] * 1.5 + trend_bonus[i][d]
-            top5 = sorted(score.items(), key=lambda x: (-x[1], x[0]))[:5]
-            result.append([d for d, _ in top5])
+        for i, (strat, n) in enumerate(setting):
+            if len(draws) < n:
+                st.warning(f"❗ Tidak cukup draw untuk Pick {i+1} dengan strategi `{strat}` (perlu {n} draw).")
+                st.stop()
+            base = generate_base(draws, strat, recent_n=n)
+            result.append(base[i])
         return result
 
     # ========== FREQUENCY ==========
     if method == "frequency":
+        if len(draws) < recent_n:
+            st.warning(f"⚠️ Tidak cukup data untuk strategi `{method}` dengan {recent_n} draw.")
+            st.stop()
         counters = [Counter() for _ in range(4)]
-        for num in recent:
-            for i, d in enumerate(num):
-                counters[i][d] += 1
-        return [[d for d,_ in c.most_common(5)] for c in counters]
+        for d in draws[-recent_n:]:
+            for i, digit in enumerate(d['number']):
+                counters[i][digit] += 1
+        return [[d for d, _ in c.most_common(5)] for c in counters]
 
     # ========== GAP ==========
     if method == "gap":
