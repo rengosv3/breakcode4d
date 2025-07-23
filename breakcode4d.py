@@ -84,18 +84,24 @@ def update_draws(file_path='data/draws.txt', max_days_back=121, recent_n=50):
             current += timedelta(days=1)
 
     if added:
-        # 1. prepare base_last from draws before new entries
+        # 1. prepare draws before the newly added ones
         all_draws = load_draws(file_path)
         draws_before = all_draws[:-len(added)]
 
-        # 2. generate and save base_last.txt (fallback if too few draws)
+        # 2. generate base_last from draws_before (fallback if too few)
         if len(draws_before) >= recent_n:
             base_last = generate_base(draws_before, method='frequency', recent_n=recent_n)
         else:
+            # fallback: use all_draws up to available
             base_last = generate_base(all_draws, method='frequency', recent_n=min(len(all_draws), recent_n))
-        save_base_to_file(base_last, 'data/base_last.txt')
 
-        # 3. generate and save base.txt for full draws
+        # 3. save base_last.txt only if not exists or is empty
+        last_path = 'data/base_last.txt'
+        os.makedirs(os.path.dirname(last_path), exist_ok=True)
+        if not os.path.exists(last_path) or os.path.getsize(last_path) == 0:
+            save_base_to_file(base_last, last_path)
+
+        # 4. generate and save new base.txt for full draws
         latest_base = generate_base(all_draws, method='frequency', recent_n=recent_n)
         save_base_to_file(latest_base, 'data/base.txt')
 
@@ -200,22 +206,6 @@ def run_backtest(draws, strategy='hybrid', recent_n=10, arah='Kiri ke Kanan (P1�
     st.success(f"🎯 Jumlah digit match: {matched} daripada {backtest_rounds}")
     st.dataframe(df, use_container_width=True)
 
-# ===================== LIKE / DISLIKE ANALYSIS =====================
-def get_like_dislike_digits(draws, recent_n=30):
-    last = [d['number'] for d in draws[-recent_n:] if 'number' in d and len(d['number']) == 4]
-    cnt = Counter()
-    for num in last:
-        cnt.update(num)
-    mc = cnt.most_common()
-    like = [d for d, _ in mc[:3]]
-    dislike = [d for d, _ in mc[-3:]] if len(mc) >= 3 else []
-    return like, dislike
-
-# ===================== PREDICTION DETERMINISTIK =====================
-def generate_predictions_from_base(base, max_preds=10):
-    combos = [''.join(p) for p in itertools.product(*base)]
-    return combos[:max_preds]
-
 # ===================== UI =====================
 st.set_page_config(page_title="Breakcode4D Predictor", layout="wide")
 st.markdown(f"⏳ Next draw: `{str(get_draw_countdown_from_last_8pm()).split('.')[0]}`")
@@ -253,8 +243,7 @@ else:
             st.warning("⚠️ Data draw tidak mencukupi untuk paparan insight.")
             st.stop()
 
-        # draw semalam & base dari sebelum update
-        last = draws[-2]
+        last = draws[-2]  # draw semalam
         base = load_base_from_file('data/base_last.txt')
 
         if not base or len(base) != 4:
@@ -293,8 +282,7 @@ else:
     # TAB BACKTEST
     with tabs[2]:
         st.markdown("### 🔁 Backtest Base")
-        arah_pilihan = st.radio("🔁 Pilih arah bacaan digit:",
-            ["Kiri ke Kanan (P1→P4)","Kanan ke Kiri (P4→P1)"], index=0, key="backtest_arah")
+        arah_pilihan = st.radio("🔁 Pilih arah bacaan digit:", ["Kiri ke Kanan (P1→P4)","Kanan ke Kiri (P4→P1)"], index=0, key="backtest_arah")
         strat = st.selectbox("Pilih strategi base untuk backtest:", ['frequency','gap','hybrid','qaisara','smartpattern'])
         base_n = st.slider("Jumlah draw terkini digunakan untuk jana base:", 5, 120, 30, 5)
         backtest_n = st.slider("Jumlah draw yang diuji (berapa kali backtest):", 5, 50, 10)
@@ -308,8 +296,7 @@ else:
     # TAB WHEELPICK
     with tabs[4]:
         st.markdown("### 🎡 Wheelpick Generator")
-        arah_pilihan_wp = st.radio("🔁 Pilih arah bacaan digit:",
-            ["Kiri ke Kanan (P1→P4)","Kanan ke Kiri (P4→P1)"], index=0, key="wheelpick_arah")
+        arah_pilihan_wp = st.radio("🔁 Pilih arah bacaan digit:", ["Kiri ke Kanan (P1→P4)","Kanan ke Kiri (P4→P1)"], index=0, key="wheelpick_arah")
         like_sugg, dislike_sugg = get_like_dislike_digits(draws)
         st.markdown(f"👍 **Cadangan LIKE:** `{like_sugg}`")
         st.markdown(f"👎 **Cadangan DISLIKE:** `{dislike_sugg}`")
