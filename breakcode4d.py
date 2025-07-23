@@ -70,6 +70,15 @@ def update_draws(file_path='data/draws.txt', max_days_back=121):
     current = last_date + timedelta(days=1)
     added = []
 
+    # ✅ LANGKAH 1: SALIN base.txt → base_last.txt SEBELUM tambah draw baru
+    if os.path.exists('data/base.txt'):
+        with open('data/base.txt', 'r') as f:
+            content = f.read().strip()
+        if content:
+            import shutil
+            shutil.copyfile('data/base.txt', 'data/base_last.txt')
+
+    # ✅ LANGKAH 2: Tambah draw baru
     os.makedirs(os.path.dirname(file_path), exist_ok=True)
     with open(file_path, 'a') as f:
         while current.date() <= yesterday.date():
@@ -83,18 +92,9 @@ def update_draws(file_path='data/draws.txt', max_days_back=121):
                 added.append({'date': date_str, 'number': prize})
             current += timedelta(days=1)
 
+    # ✅ LANGKAH 3: Jana base terkini ke base.txt jika ada draw baru
     if added:
         draws = load_draws(file_path)
-
-        # ✅ SALIN base.txt → base_last.txt jika tidak kosong
-        if os.path.exists('data/base.txt'):
-            with open('data/base.txt', 'r') as f:
-                content = f.read().strip()
-            if content:
-                import shutil
-                shutil.copyfile('data/base.txt', 'data/base_last.txt')
-
-        # ✅ Jana base terkini ke base.txt
         latest_base = generate_base(draws, method='frequency', recent_n=50)
         save_base_to_file(latest_base, 'data/base.txt')
 
