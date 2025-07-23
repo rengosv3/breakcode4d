@@ -253,6 +253,7 @@ else:
         if len(draws) < 1:
             st.warning("❗ Data draw tidak cukup untuk analisis insight.")
             st.stop()
+
         last = draws[-1]
         base = load_base_from_file('data/base_last.txt')
 
@@ -273,9 +274,45 @@ else:
                 f"Pos {i+1}: {'✅' if dig in base[i] else '❌'} `{dig}`"
             )
 
-        st.markdown("### 📋 Base Digunakan (Sebelum Draw Ini):")
-        for i, b in enumerate(base):
-            st.text(f"Pos {i+1}: {' '.join(b)}")
+        # ===================== COMPARISON SECTION =====================
+        st.markdown("---")
+        st.markdown("### 🧪 Perbandingan Strategi Base_last")
+        
+        arah_uji = st.radio("🔁 Arah Bacaan Digit:", 
+                            ["Kiri ke Kanan (P1→P4)", "Kanan ke Kiri (P4→P1)"],
+                            key="arah_insight_compare")
+        
+        recent_n = st.slider("📊 Bilangan draw digunakan untuk base:", 10, 100, 50, 5, key="recent_compare_slider")
+        strategi_list = ['frequency', 'gap', 'hybrid', 'qaisara', 'smartpattern']
+
+        def match_insight_result(fp, base):
+            if arah_uji == "Kanan ke Kiri (P4→P1)":
+                fp, base = fp[::-1], base[::-1]
+            return ['✅' if fp[i] in base[i] else '❌' for i in range(4)]
+
+        rows = []
+        if len(draws) > recent_n:
+            test_draw = draws[-1]
+            past_draws = draws[:-1]
+
+            for strat in strategi_list:
+                try:
+                    base_test = generate_base(past_draws, method=strat, recent_n=recent_n)
+                    insight = match_insight_result(test_draw['number'], base_test)
+                    rows.append({
+                        "Strategi": strat,
+                        "P1": insight[0], "P2": insight[1],
+                        "P3": insight[2], "P4": insight[3],
+                        "✅ Total": insight.count("✅")
+                    })
+                except:
+                    pass
+
+            df_result = pd.DataFrame(rows)
+            df_result = df_result.sort_values("✅ Total", ascending=False)
+            st.dataframe(df_result, use_container_width=True)
+        else:
+            st.warning("❗ Tidak cukup draw untuk analisis strategi.")
 
     # ===================== TAB RAMALAN =====================
     with tabs[1]:
