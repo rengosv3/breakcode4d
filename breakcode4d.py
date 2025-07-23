@@ -245,25 +245,34 @@ else:
     st.info(f"📅 Tarikh terakhir: **{draws[-1]['date']}** | 📊 Jumlah draw: **{len(draws)}**")
     tabs = st.tabs(["📌 Insight", "🧠 Ramalan", "🔁 Backtest", "📋 Draw List", "🎡 Wheelpick"])
 
-    # Insight Tab
+    # ===================== TAB INSIGHT =====================
     with tabs[0]:
         st.markdown("### 📌 Insight Terakhir")
+    
+        draws = load_draws()  # kalau belum ada
+    if not draws:
+        st.warning("Tiada draw data dijumpai.")
+        st.stop()
+
         last = draws[-1]
         base = load_base_from_file('data/base_last.txt')  # ✅ Guna base terakhir
 
     if not base or len(base) != 4:
         st.warning("⚠️ Base terakhir (`base_last.txt`) belum wujud atau kosong.\nSila tekan 'Update Draw Terkini' dahulu dan pastikan draw sebelumnya telah lengkap.")
         st.stop()
-    else:
+    
+    # ✅ Kalau semua OK, papar Insight
         st.markdown(f"**Tarikh Draw:** `{last['date']}`")
         st.markdown(f"**Nombor 1st Prize:** `{last['number']}`")
+
         cols = st.columns(4)
-        for i in range(4):
-            dig = last['number'][i]
-            (cols[i].success if dig in base[i] else cols[i].error)(f"Pos {i+1}: {'✅' if dig in base[i] else '❌'} `{dig}`")
+    for i in range(4):
+        dig = last['number'][i]
+        (cols[i].success if dig in base[i] else cols[i].error)(f"Pos {i+1}: {'✅' if dig in base[i] else '❌'} `{dig}`")
+
         st.markdown("### 📋 Base Digunakan (Sebelum Draw Ini):")
-        for i, b in enumerate(base):
-            st.text(f"Pos {i+1}: {' '.join(b)}")
+    for i, b in enumerate(base):
+        st.text(f"Pos {i+1}: {' '.join(b)}")
 
     # Ramalan Tab
     with tabs[1]:
