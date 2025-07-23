@@ -43,14 +43,12 @@ def get_1st_prize(date_str):
     try:
         resp = requests.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=10)
         if resp.status_code != 200:
-            print(f"Status bukan 200 untuk {date_str}: {resp.status_code}")
             return None
         soup = BeautifulSoup(resp.text, "html.parser")
         prize_tag = soup.find("span", id="1stPz")
         text = prize_tag.text.strip() if prize_tag else ""
         return text if text.isdigit() and len(text) == 4 else None
-    except requests.RequestException as e:
-        print(f"Ralat semasa request untuk {date_str}: {e}")
+    except requests.RequestException:
         return None
 
 def update_draws(file_path='data/draws.txt', max_days_back=121):
@@ -85,9 +83,9 @@ def update_draws(file_path='data/draws.txt', max_days_back=121):
 def generate_base(draws, method='frequency', recent_n=50):
     total = len(draws)
     if total < recent_n:
-        st.warning(f"Tidak cukup data untuk strategi `{method}`. Minimum {recent_n} draws diperlukan, tapi hanya {total} draws tersedia.")
+        st.warning(f"Tidak cukup data untuk strategi `{method}`. Minimum {recent_n} draws diperlukan, tapi hanya {total} tersedia.")
         st.stop()
-    recent = [d['number'] for d in draws[-recent_n:] if len(d.get('number','')) == 4]
+    recent = [d['number'] for d in draws[-recent_n:] if len(d['number']) == 4]
     if method == "smartpattern":
         transitions = [defaultdict(Counter) for _ in range(4)]
         for i in range(1, len(recent)):
@@ -167,7 +165,7 @@ def run_backtest(draws, strategy='hybrid', recent_n=10, arah='Kiri ke Kanan (P1‚
     st.dataframe(df, use_container_width=True)
 
 def get_like_dislike_digits(draws, recent_n=30):
-    last = [d['number'] for d in draws[-recent_n:] if len(d.get('number','')) == 4]
+    last = [d['number'] for d in draws[-recent_n:] if len(d['number']) == 4]
     cnt = Counter()
     for num in last:
         cnt.update(num)
@@ -179,6 +177,25 @@ def get_like_dislike_digits(draws, recent_n=30):
 def generate_predictions_from_base(base, max_preds=10):
     combos = [''.join(p) for p in itertools.product(*base)]
     return combos[:max_preds]
+
+def apply_filters(combos, draws, nr, nt, npair, na, uh, sl, likes, dislikes):
+    past = {d['number'] for d in draws}
+    last = draws[-1]['number'] if draws else "0000"
+    out = []
+    for e in combos:
+        num = e[:4]
+        digs = list(num)
+        if nr and len(set(digs)) < 4: continue
+        if nt and any(digs.count(d) >= 3 for d in digs): continue
+        if npair and any(digs.count(d) == 2 for d in set(digs)): continue
+        if na and num in ["0123","1234","2345","3456","4567","5678","6789"]: continue
+        if uh and num in past: continue
+        sim = sum(a == b for a, b in zip(num, last))
+        if sim > sl: continue
+        if likes and not any(d in likes for d in digs): continue
+        if dislikes and any(d in dislikes for d in digs): continue
+        out.append(e)
+    return out
 
 st.set_page_config(page_title="Breakcode4D Predictor", layout="wide")
 st.markdown(f"‚è≥ Next draw: `{str(get_draw_countdown_from_last_8pm()).split('.')[0]}`")
@@ -202,7 +219,7 @@ with col2:
 
 draws = load_draws()
 if not draws:
-    st.warning("Sila klik 'Update Draw Terkini' untuk mula. Proses ini hanya mengambil masa 1-5 minit sahaja.")
+    st.warning("Sila klik 'Update Draw Terkini' untuk mula.")
 else:
     st.info(f"Tarikh terakhir: {draws[-1]['date']} | Jumlah draw: {len(draws)}")
     tabs = st.tabs(["Insight", "Ramalan", "Backtest", "Draw List", "Wheelpick"])
@@ -212,7 +229,7 @@ else:
         last = draws[-1]
         base = load_base_from_file('data/base_last.txt')
         if not base or len(base) != 4:
-            st.warning("Base terakhir belum wujud atau kosong. Sila tekan 'Update Draw Terkini' dahulu.")
+            st.warning("Base terakhir belum wujud atau kosong.")
             st.stop()
         st.markdown(f"**Tarikh Draw:** `{last['date']}`")
         st.markdown(f"**Nombor 1st Prize:** `{last['number']}`")
@@ -257,7 +274,6 @@ else:
         user_dislike = st.text_input("Masukkan DISLIKE:", value=' '.join(dislike_sugg))
         like_digits = [d for d in user_like.split() if d.isdigit()]
         dislike_digits = [d for d in user_dislike.split() if d.isdigit()]
-
         mode = st.radio("Mod Input Base:", ["Auto","Manual"])
         if mode == "Manual":
             manual_base = []
@@ -271,10 +287,9 @@ else:
         else:
             base = load_base_from_file()
             if len(base) != 4:
-                st.warning("Base tidak sah. Sila Update Draw Terkini.")
+                st.warning("Base tidak sah.")
                 st.stop()
             manual_base = base
-
         lot = st.text_input("Nilai Lot:", value="0.10")
         with st.expander("Tapisan Tambahan"):
             no_repeat = st.checkbox("Buang nombor berulang")
@@ -283,26 +298,6 @@ else:
             no_ascend = st.checkbox("Buang menaik")
             use_history = st.checkbox("Buang nombor pernah naik")
             sim_limit   = st.slider("Had persamaan digit dengan terakhir", 0, 4, 2)
-
-        def apply_filters(combos, draws, nr, nt, npair, na, uh, sl, likes, dislikes):
-            past = {d['number'] for d in draws}
-            last = draws[-1]['number'] if draws else "0000"
-            out = []
-            for e in combos:
-                num = e[:4]
-                digs = list(num)
-                if nr and len(set(digs)) < 4: continue
-                if nt and any(digs.count(d) >= 3 for d in digs): continue
-                if npair and any(digs.count(d) == 2 for d in set(digs)): continue
-                if na and num in ["0123","1234","2345","3456","4567","5678","6789"]: continue
-                if uh and num in past: continue
-                sim = sum(a == b for a, b in zip(num, last))
-                if sim > sl: continue
-                if likes and not any(d in likes for d in digs): continue
-                if dislikes and any(d in dislikes for d in digs): continue
-                out.append(e)
-            return out
-
         if st.button("Create Wheelpick"):
             combos = [f"{a}{b}{c}{d}#{lot}" for a in manual_base[0] for b in manual_base[1] for c in manual_base[2] for d in manual_base[3]]
             st.info(f"Sebelum tapis: {len(combos)}")
