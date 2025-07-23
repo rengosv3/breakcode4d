@@ -1,4 +1,5 @@
-# ===================== IMPORT =====================
+# app.py
+
 import streamlit as st
 import os
 import re
@@ -83,17 +84,17 @@ def update_draws(file_path='data/draws.txt', max_days_back=121):
             current += timedelta(days=1)
 
     if added:
-        # ✅ 1. Dapatkan draw sebelum draw terbaru ditambah
+        # 1. draw sebelum yang terbaru
         draws_before = load_draws(file_path)[:-len(added)]
 
-        # ✅ 2. Jana base_last.txt → berdasarkan draw sebelum terkini
+        # 2. jana base_last.txt dari draws_before
         base_last = generate_base(draws_before, method='frequency', recent_n=50)
         save_base_to_file(base_last, 'data/base_last.txt')
 
-        # ✅ 3. Dapatkan draw penuh selepas penambahan
+        # 3. draw penuh termasuk yang baru
         draws = load_draws(file_path)
 
-        # ✅ 4. Jana base.txt → berdasarkan draw terkini penuh
+        # 4. jana base.txt dari draw penuh
         latest_base = generate_base(draws, method='frequency', recent_n=50)
         save_base_to_file(latest_base, 'data/base.txt')
 
@@ -110,8 +111,8 @@ def generate_base(draws, method='frequency', recent_n=50):
         st.stop()
 
     recent = [d['number'] for d in draws[-recent_n:] if 'number' in d and len(d['number'])==4]
+
     if method == "smartpattern":
-        # Markov-style transition patterns
         transitions = [defaultdict(Counter) for _ in range(4)]
         for i in range(1, len(recent)):
             prev, curr = recent[i-1], recent[i]
@@ -126,7 +127,6 @@ def generate_base(draws, method='frequency', recent_n=50):
             base.append(top if top else ['0'])
         return base
 
-    # Frequency
     if method == "frequency":
         counters = [Counter() for _ in range(4)]
         for num in recent:
@@ -134,7 +134,6 @@ def generate_base(draws, method='frequency', recent_n=50):
                 counters[i][d] += 1
         return [[d for d,_ in c.most_common(5)] for c in counters]
 
-    # Gap
     if method == "gap":
         last_seen = [defaultdict(lambda: None) for _ in range(4)]
         gaps = [defaultdict(int) for _ in range(4)]
@@ -145,7 +144,6 @@ def generate_base(draws, method='frequency', recent_n=50):
                 last_seen[pos][dig] = idx
         return [[d for d,_ in sorted(g.items(), key=lambda x:-x[1])[:5]] for g in gaps]
 
-    # Hybrid
     if method == "hybrid":
         freq = generate_base(draws, 'frequency', recent_n)
         gap  = generate_base(draws, 'gap', recent_n)
@@ -155,7 +153,6 @@ def generate_base(draws, method='frequency', recent_n=50):
             combined.append([d for d,_ in cnt.most_common(5)])
         return combined
 
-    # Qaisara
     if method == "qaisara":
         bases = [generate_base(draws, m, recent_n) for m in ['frequency','gap','hybrid']]
         final = []
@@ -163,7 +160,6 @@ def generate_base(draws, method='frequency', recent_n=50):
             score = Counter()
             for b in bases:
                 score.update(b[pos])
-            # remove top & bottom
             ranked = score.most_common()
             if len(ranked)>2:
                 ranked = ranked[1:-1]
@@ -184,11 +180,11 @@ def run_backtest(draws, strategy='hybrid', recent_n=10, arah='Kiri ke Kanan (P1�
             fp, base = fp[::-1], base[::-1]
         return ["✅" if fp[i] in base[i] else "❌" for i in range(4)]
 
-    results=[]
+    results = []
     for i in range(backtest_rounds):
         test = draws[-(i+1)]
         past = draws[:-(i+1)]
-        if len(past)<recent_n: continue
+        if len(past) < recent_n: continue
         base = generate_base(past, method=strategy, recent_n=recent_n)
         insight = match_insight(test['number'], base)
         results.append({
@@ -222,7 +218,7 @@ st.set_page_config(page_title="Breakcode4D Predictor", layout="wide")
 st.markdown(f"⏳ Next draw: `{str(get_draw_countdown_from_last_8pm()).split('.')[0]}`")
 st.title("🔮 Breakcode4D Predictor (GD Lotto)")
 
-col1,col2 = st.columns(2)
+col1, col2 = st.columns(2)
 with col1:
     if st.button("📥 Update Draw Terkini"):
         msg = update_draws()
@@ -246,40 +242,43 @@ else:
     tabs = st.tabs(["📌 Insight", "🧠 Ramalan", "🔁 Backtest", "📋 Draw List", "🎡 Wheelpick"])
 
     # ===================== TAB INSIGHT =====================
-    # ===================== TAB INSIGHT =====================
     with tabs[0]:
         st.markdown("### 📌 Insight Terakhir")
-    
+        
         draws = load_draws()
-    if not draws:
+        if not draws:
             st.warning("Tiada draw data dijumpai.")
             st.stop()
 
         last = draws[-1]
         base = load_base_from_file('data/base_last.txt')
 
-    if not base or len(base) != 4:
-            st.warning("⚠️ Base terakhir (`base_last.txt`) belum wujud atau kosong.\nSila tekan 'Update Draw Terkini Semula' dahulu dan pastikan draw sebelumnya telah lengkap.")
+        if not base or len(base) != 4:
+            st.warning(
+                "⚠️ Base terakhir (`base_last.txt`) belum wujud atau kosong.\n"
+                "Sila tekan 'Update Draw Terkini' dahulu dan pastikan draw sebelumnya telah lengkap."
+            )
             st.stop()
-    
-    # Papar hasil insight
+        
         st.markdown(f"**Tarikh Draw:** `{last['date']}`")
         st.markdown(f"**Nombor 1st Prize:** `{last['number']}`")
 
         cols = st.columns(4)
-    for i in range(4):
+        for i in range(4):
             dig = last['number'][i]
-            (cols[i].success if dig in base[i] else cols[i].error)(f"Pos {i+1}: {'✅' if dig in base[i] else '❌'} `{dig}`")
+            (cols[i].success if dig in base[i] else cols[i].error)(
+                f"Pos {i+1}: {'✅' if dig in base[i] else '❌'} `{dig}`"
+            )
 
         st.markdown("### 📋 Base Digunakan (Sebelum Draw Ini):")
-    for i, b in enumerate(base):
+        for i, b in enumerate(base):
             st.text(f"Pos {i+1}: {' '.join(b)}")
 
-    # Ramalan Tab
+    # ===================== TAB RAMALAN =====================
     with tabs[1]:
         st.markdown("### 🧠 Ramalan Base")
         strat = st.selectbox("Pilih strategi base untuk ramalan:", ['frequency','gap','hybrid','qaisara','smartpattern'])
-        recent_n = st.slider("Jumlah draw terkini digunakan untuk base:", 5,120,30,5)
+        recent_n = st.slider("Jumlah draw terkini digunakan untuk base:", 5, 120, 30, 5)
         base = generate_base(draws, method=strat, recent_n=recent_n)
         for i,p in enumerate(base):
             st.text(f"Pick {i+1}: {' '.join(p)}")
@@ -287,22 +286,22 @@ else:
         st.markdown("**🔢 Ramalan Kombinasi 4D (Top 10):**")
         st.code('\n'.join(preds), language='text')
 
-    # Backtest Tab
+    # ===================== TAB BACKTEST =====================
     with tabs[2]:
         st.markdown("### 🔁 Backtest Base")
         arah_pilihan = st.radio("🔁 Pilih arah bacaan digit:",
             ["Kiri ke Kanan (P1→P4)","Kanan ke Kiri (P4→P1)"], index=0, key="backtest_arah")
         strat = st.selectbox("Pilih strategi base untuk backtest:", ['frequency','gap','hybrid','qaisara','smartpattern'])
-        base_n = st.slider("Jumlah draw terkini digunakan untuk jana base:",5,120,30,5)
-        backtest_n = st.slider("Jumlah draw yang diuji (berapa kali backtest):",5,50,10)
+        base_n = st.slider("Jumlah draw terkini digunakan untuk jana base:", 5, 120, 30, 5)
+        backtest_n = st.slider("Jumlah draw yang diuji (berapa kali backtest):", 5, 50, 10)
         if st.button("🚀 Jalankan Backtest"):
             run_backtest(draws, strategy=strat, recent_n=base_n, arah=arah_pilihan, backtest_rounds=backtest_n)
 
-    # Draw List Tab
+    # ===================== TAB DRAW LIST =====================
     with tabs[3]:
         st.dataframe(pd.DataFrame(draws), use_container_width=True)
 
-    # Wheelpick Tab
+    # ===================== TAB WHEELPICK =====================
     with tabs[4]:
         st.markdown("### 🎡 Wheelpick Generator")
         arah_pilihan_wp = st.radio("🔁 Pilih arah bacaan digit:",
@@ -347,7 +346,7 @@ else:
             last = draws[-1]['number'] if draws else "0000"
             out=[]
             for e in combos:
-                num=e[:4]
+                num,e_lot = e.split("#####")
                 digs=list(num)
                 if nr and len(set(digs))<4: continue
                 if nt and any(digs.count(d)>=3 for d in digs): continue
