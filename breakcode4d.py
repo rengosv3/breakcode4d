@@ -251,10 +251,10 @@ else:
             st.warning("Tiada draw data dijumpai.")
             st.stop()
 
-        if len(draws) < 2:
+        if len(draws) < 1:
             st.warning("❗ Data draw tidak cukup untuk analisis insight.")
             st.stop()
-        last = draws[-2]
+        last = draws[-1]
         base = load_base_from_file('data/base_last.txt')
 
         if not base or len(base) != 4:
