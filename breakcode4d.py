@@ -101,101 +101,89 @@ def update_draws(file_path='data/draws.txt', max_days_back=181):
 # ===================== STRATEGY BASE =====================
 def generate_base(draws, method='frequency', recent_n=50):
     total = len(draws)
-    if total < min(35, 45, 50, 60):  # minimum diperlukan untuk smartpattern baru
-        st.warning(
-            f"⚠️ Tidak cukup data untuk strategi `{method}`. "
-            f"Minimum 60 draws diperlukan, tapi hanya {total} draws tersedia."
-        )
-        st.stop()
 
-    # ========== SMARTPATTERN (Gabungan pelbagai strategi) ==========
     if method == "smartpattern":
-        # Set setiap strategi dan recent_n untuk setiap pick
+        # Semak minimum keperluan data untuk semua strategi dalam smartpattern
+        if total < 60:
+            st.warning(
+                f"⚠️ Tidak cukup data untuk strategi `{method}`. "
+                f"Minimum 60 draws diperlukan, tapi hanya {total} draws tersedia."
+            )
+            st.stop()
+
+        # Tetapan strategi & recent_n untuk setiap posisi (Pick 1–4)
         setting = [
-            ('qaisara', 60),   # Pick 1
-            ('hybrid', 45),    # Pick 2
-            ('frequency', 50), # Pick 3
-            ('hybrid', 35),    # Pick 4
+            ('qaisara', 60),   # P1
+            ('hybrid', 45),    # P2
+            ('frequency', 50), # P3
+            ('hybrid', 35),    # P4
         ]
+
         result = []
         for i, (strat, n) in enumerate(setting):
-            if len(draws) < n:
+            if total < n:
                 st.warning(f"❗ Tidak cukup draw untuk Pick {i+1} dengan strategi `{strat}` (perlu {n} draw).")
                 st.stop()
             base = generate_base(draws, strat, recent_n=n)
             result.append(base[i])
         return result
 
-    # ========== FREQUENCY ==========
+    # ========= STRATEGI BIASA =========
+    if total < recent_n:
+        st.warning(
+            f"⚠️ Tidak cukup data untuk strategi `{method}` dengan recent_n={recent_n}. "
+            f"Hanya {total} draw tersedia."
+        )
+        st.stop()
+
+    recent = [d['number'] for d in draws[-recent_n:]]
+
     if method == "frequency":
-        if len(draws) < recent_n:
-            st.warning(f"⚠️ Tidak cukup data untuk strategi `{method}` dengan {recent_n} draw.")
-            st.stop()
-        counters = [Counter() for _ in range(4)]
-        for d in draws[-recent_n:]:
-            for i, digit in enumerate(d['number']):
-                counters[i][digit] += 1
-        return [[d for d, _ in c.most_common(5)] for c in counters]
+        freq = [Counter() for _ in range(4)]
+        for number in recent:
+            for i, d in enumerate(number):
+                freq[i][d] += 1
+        return [sorted(freq[i], key=freq[i].get, reverse=True)[:5] for i in range(4)]
 
-    # ========== GAP ==========
-    if method == "gap":
-        if len(draws) < 120:
-            st.warning("⚠️ Tidak cukup data untuk strategi 'gap'. Minimum 120 draw diperlukan.")
-            st.stop()
-
-        freq_120 = [Counter() for _ in range(4)]
-        last_hits = [set() for _ in range(4)]
-
-        for draw in draws[-120:]:
-            for i, d in enumerate(draw['number']):
-                freq_120[i][d] += 1
-                last_hits[i].add(d)
-
-        top_digits = []
+    elif method == "hybrid":
+        freq = [Counter() for _ in range(4)]
+        last_digits = [set() for _ in range(4)]
+        for number in recent:
+            for i, d in enumerate(number):
+                freq[i][d] += 1
+                if number == recent[-1]:  # draw terakhir
+                    last_digits[i].add(d)
+        hybrid = []
         for i in range(4):
-            most_common = freq_120[i].most_common(10)
-            filtered = [d for d, _ in most_common if d != most_common[0][0] and d != most_common[-1][0]]
-            top_digits.append(filtered[:8])  # tinggal 8 selepas buang top & bottom
+            sorted_digits = sorted(freq[i], key=freq[i].get, reverse=True)
+            combined = [d for d in sorted_digits if d not in last_digits[i]]
+            hybrid.append(combined[:5])
+        return hybrid
 
-        # Dari 10 draw terakhir
-        recent10 = draws[-10:]
-        recent_top = [Counter() for _ in range(4)]
-        recent_seen = [set() for _ in range(4)]
-        for draw in recent10:
-            for i, d in enumerate(draw['number']):
-                recent_top[i][d] += 1
-                recent_seen[i].add(d)
+    elif method == "qaisara":
+        if total < recent_n:
+            st.warning(f"❗ Tidak cukup draw untuk strategi qaisara (perlu {recent_n} draw).")
+            st.stop()
+        base_hybrid = generate_base(draws, "hybrid", recent_n=recent_n)
+        base_freq = generate_base(draws, "frequency", recent_n=recent_n)
 
-        gap_result = []
+        qaisara = []
         for i in range(4):
-            excluded = set([d for d, _ in recent_top[i].most_common(2)] + list(recent_seen[i]))
-            final = [d for d in top_digits[i] if d not in excluded]
-            gap_result.append(final[:5])
-        return gap_result
+            score = defaultdict(int)
+            for idx, d in enumerate(base_freq[i]):
+                score[d] += (5 - idx)
+            for idx, d in enumerate(base_hybrid[i]):
+                score[d] += (5 - idx)
+            sorted_score = sorted(score.items(), key=lambda x: x[1], reverse=True)
+            selected = [d for d, _ in sorted_score]
+            if len(selected) >= 7:
+                selected = selected[1:-1]  # buang top 1 & bottom 1
+            qaisara.append(selected[:5])
+        return qaisara
 
-    # ========== HYBRID ==========
-    if method == "hybrid":
-        freq = generate_base(draws, 'frequency', recent_n)
-        gap  = generate_base(draws, 'gap', recent_n)
-        combined = []
-        for f, g in zip(freq, gap):
-            cnt = Counter(f + g)
-            combined.append([d for d, _ in cnt.most_common(5)])
-        return combined
-
-    # ========== QAISARA ==========
-    if method == "qaisara":
-        bases = [generate_base(draws, m, recent_n) for m in ['frequency', 'gap', 'hybrid']]
-        final = []
-        for pos in range(4):
-            score = Counter()
-            for b in bases:
-                score.update(b[pos])
-            ranked = score.most_common()
-            if len(ranked) > 2:
-                ranked = ranked[1:-1]  # buang top 1 dan bottom 1
-            final.append([d for d, _ in ranked[:5]])
-        return final
+    else:
+        st.error(f"❌ Strategi tidak dikenali: {method}")
+        return [[] for _ in range(4)]
 
     # ========== UNKNOWN ==========
     st.warning(f"Strategi '{method}' tidak dikenali.")
