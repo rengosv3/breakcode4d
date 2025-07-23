@@ -201,12 +201,22 @@ def generate_base(draws, method='frequency', recent_n=50):
     st.warning(f"Strategi '{method}' tidak dikenali.")
     return [['0'], ['0'], ['0'], ['0']]
 
-# ===================== BACKTEST FUNCTION =====================
-def run_backtest(draws, strategy='hybrid', recent_n=10, arah='Kiri ke Kanan (P1→P4)', backtest_rounds=10):
-    if len(draws) < recent_n + backtest_rounds:
-        st.warning("❗ Tidak cukup draw untuk backtest.")
-        return
+def run_backtest(draws, strategy='hybrid', recent_n=50, arah='Kiri ke Kanan (P1→P4)', backtest_rounds=10):
+    # Jumlah draw diperlukan mengikut strategi
+    min_required = {
+        'frequency': 50,
+        'gap': 120,
+        'hybrid': 50,
+        'qaisara': 60,
+        'smartai': 50,
+        'smartpattern': 60  # paling besar antara semua pick
+    }
+    required = min_required.get(strategy, 50)
 
+    if len(draws) < backtest_rounds + required:
+        st.warning(f"❗ Tidak cukup draw untuk backtest '{strategy}'. Sekurang-kurangnya {backtest_rounds + required} draw diperlukan.")
+        return
+    # =============== BACKTEST ============
     def match_insight(fp, base):
         if arah == "Kanan ke Kiri (P4→P1)":
             fp, base = fp[::-1], base[::-1]
@@ -214,20 +224,32 @@ def run_backtest(draws, strategy='hybrid', recent_n=10, arah='Kiri ke Kanan (P1�
 
     results = []
     for i in range(backtest_rounds):
-        test = draws[-(i+1)]
-        past = draws[:-(i+1)]
-        if len(past) < recent_n: continue
-        base = generate_base(past, method=strategy, recent_n=recent_n)
-        insight = match_insight(test['number'], base)
-        results.append({
-            "Tarikh": test['date'],
-            "Result 1st": test['number'],
-            "Insight": ' '.join(f"P{j+1}:{s}" for j,s in enumerate(insight))
-        })
+        test_draw = draws[-(i+1)]
+        past_draws = draws[:-(i+1)]
+
+        try:
+            # Untuk strategi yang tak perlukan recent_n dihantar (urus sendiri)
+            if strategy in ['smartpattern']:
+                base = generate_base(past_draws, method=strategy)
+            else:
+                base = generate_base(past_draws, method=strategy, recent_n=recent_n)
+
+            insight = match_insight(test_draw['number'], base)
+            results.append({
+                "Tarikh": test_draw['date'],
+                "Result 1st": test_draw['number'],
+                "Insight": ' '.join(f"P{j+1}:{s}" for j, s in enumerate(insight))
+            })
+        except Exception as e:
+            results.append({
+                "Tarikh": test_draw['date'],
+                "Result 1st": test_draw['number'],
+                "Insight": f"⚠️ Ralat: {str(e)}"
+            })
 
     df = pd.DataFrame(results[::-1])
-    matched = sum("✅" in r["Insight"] for r in results)
-    st.success(f"🎯 Jumlah digit match: {matched} daripada {backtest_rounds}")
+    matched = sum("✅" in r["Insight"] for r in results if "Insight" in r and isinstance(r["Insight"], str))
+    st.success(f"🎯 Jumlah draw dengan sekurang-kurangnya satu digit match: {matched} daripada {backtest_rounds}")
     st.dataframe(df, use_container_width=True)
 
 # ===================== LIKE / DISLIKE ANALYSIS =====================
