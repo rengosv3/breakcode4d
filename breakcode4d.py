@@ -185,67 +185,6 @@ def generate_base(draws, method='frequency', recent_n=50):
         st.error(f"❌ Strategi tidak dikenali: {method}")
         return [[] for _ in range(4)]
 
-# ===================== STRATEGY BASE =====================
-def generate_base(draws, method='frequency', recent_n=50):
-    # ... isi asal generate_base ...
-    return base
-
-# ===================== AUTO SMARTPATTERN ANALYSIS =====================
-def cari_strategi_terbaik(draws, arah="Kiri ke Kanan (P1→P4)"):
-    strategi_list = ['frequency', 'hybrid', 'qaisara', 'gap', 'smartai']
-    recent_range = list(range(25, 71, 5))
-    total_draw = len(draws)
-
-    if total_draw < 130:
-        st.warning("⚠️ Minimum 130 draw diperlukan untuk analisis strategi terbaik (termasuk 'gap').")
-        return
-
-    keputusan = []
-
-    for pos in range(4):
-        best_score = -1
-        best_setting = None
-
-        for strategi in strategi_list:
-            for recent_n in recent_range:
-                try:
-                    if strategi == 'gap' and len(draws) < 130:
-                        continue
-                    if strategi == 'smartai' and len(draws) < 50:
-                        continue
-                    if strategi == 'qaisara' and len(draws) < recent_n:
-                        continue
-
-                    match_count = 0
-                    for i in range(10):
-                        test_draw = draws[-(i+1)]
-                        past_draws = draws[:-(i+1)]
-                        if len(past_draws) < recent_n:
-                            continue
-                        base = generate_base(past_draws, method=strategi, recent_n=recent_n)
-                        target_digit = test_draw['number'][pos]
-                        base_digit = base[pos]
-                        if arah == "Kanan ke Kiri (P4→P1)":
-                            target_digit = test_draw['number'][3 - pos]
-                            base_digit = base[3 - pos]
-                        if target_digit in base_digit:
-                            match_count += 1
-
-                    if match_count > best_score:
-                        best_score = match_count
-                        best_setting = (strategi, recent_n, match_count)
-                except:
-                    continue
-
-        keputusan.append({
-            f"P{pos+1}": {
-                "Strategi": best_setting[0],
-                "Recent_n": best_setting[1],
-                "✅ Match": best_setting[2]
-            }
-        })
-
-    return keputusan
     # ========== UNKNOWN ==========
     st.warning(f"Strategi '{method}' tidak dikenali.")
     return [['0'], ['0'], ['0'], ['0']]
